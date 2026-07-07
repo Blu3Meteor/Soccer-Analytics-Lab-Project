@@ -72,9 +72,16 @@ st.markdown(
     .summary-card {
         border: 1px solid var(--soft-border);
         border-radius: 8px;
-        padding: 0.9rem 1rem;
+        padding: 0.85rem 1rem;
         background: var(--panel);
-        min-height: 92px;
+        min-height: 104px;
+    }
+
+    .summary-heading {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.75rem;
     }
 
     .summary-label {
@@ -86,9 +93,39 @@ st.markdown(
 
     .summary-value {
         color: var(--ink);
-        font-size: 1.55rem;
+        font-size: 1.45rem;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .record-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.42rem;
+        margin-top: 0.65rem;
+    }
+
+    .record-item {
+        border: 1px solid #edf0f3;
+        border-radius: 6px;
+        padding: 0.42rem 0.35rem;
+        text-align: center;
+        background: #fafbfc;
+    }
+
+    .record-number {
+        color: var(--ink);
+        font-size: 1.08rem;
+        font-weight: 900;
+        line-height: 1;
+    }
+
+    .record-label {
+        color: var(--muted);
+        font-size: 0.66rem;
         font-weight: 800;
         margin-top: 0.15rem;
+        text-transform: uppercase;
     }
 
     div.stButton > button {
@@ -1042,9 +1079,44 @@ def render_lineup_panel(
             st.caption("No substitutions listed.")
 
 
-def record_summary(summaries: list[dict[str, Any]]) -> str:
+def season_record(summaries: list[dict[str, Any]]) -> dict[str, int]:
     record = Counter(summary["freiburgResult"] for summary in summaries)
-    return f"{record['W']}-{record['D']}-{record['L']}"
+    wins = record["W"]
+    draws = record["D"]
+    losses = record["L"]
+    return {
+        "matches": len(summaries),
+        "wins": wins,
+        "draws": draws,
+        "losses": losses,
+        "points": wins * 3 + draws,
+    }
+
+
+def render_season_record_card(record: dict[str, int]) -> str:
+    return (
+        '<div class="summary-card">'
+        '<div class="summary-heading">'
+        '<div class="summary-label">Season Record</div>'
+        f'<div class="summary-value">{record["points"]} pts</div>'
+        '</div>'
+        '<div class="record-grid">'
+        f'<div class="record-item"><div class="record-number">{record["wins"]}</div><div class="record-label">Wins</div></div>'
+        f'<div class="record-item"><div class="record-number">{record["draws"]}</div><div class="record-label">Draws</div></div>'
+        f'<div class="record-item"><div class="record-number">{record["losses"]}</div><div class="record-label">Losses</div></div>'
+        '</div>'
+        '</div>'
+    )
+
+
+def points_progression(summaries: list[dict[str, Any]]) -> list[dict[str, int]]:
+    points_by_result = {"W": 3, "D": 1, "L": 0}
+    total = 0
+    rows = []
+    for game_number, summary in enumerate(summaries, start=1):
+        total += points_by_result.get(summary["freiburgResult"], 0)
+        rows.append({"Game": game_number, "Points": total})
+    return rows
 
 
 def result_word(code: str) -> str:
@@ -1146,6 +1218,8 @@ if query_match_id is not None:
             break
 
 selected_index = min(max(int(st.session_state.selected_match_index), 0), len(summaries) - 1)
+record = season_record(summaries)
+points_chart_data = points_progression(summaries)
 
 st.markdown('<div class="headline-row">', unsafe_allow_html=True)
 left, right = st.columns([0.74, 0.26])
@@ -1153,15 +1227,9 @@ with left:
     st.markdown('<div class="app-kicker">Bundesliga 2023/24 · Impect Exam Data</div>', unsafe_allow_html=True)
     st.title("SC Freiburg Match Dashboard")
 with right:
-    st.markdown(
-        f"""
-        <div class="summary-card">
-            <div class="summary-label">Season Record</div>
-            <div class="summary-value">{record_summary(summaries)}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown(render_season_record_card(record), unsafe_allow_html=True)
+    with st.expander("Points progression", expanded=False):
+        st.line_chart(points_chart_data, x="Game", y="Points")
 st.markdown("</div>", unsafe_allow_html=True)
 
 render_match_strip(summaries, selected_index, squads_by_id)
