@@ -77,4 +77,4 @@ pip install -r "Exam Files/requirements.txt"
 Possession is estimated from attacking event share because the dataset does not include a direct possession percentage field.
 
 ## Notes and Caveats
-- No yellow card data
+- No yellow card data is present in the events_kpis folder.
