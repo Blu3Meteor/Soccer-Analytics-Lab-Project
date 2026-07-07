@@ -2,6 +2,14 @@
 
 Streamlit dashboard for exploring SC Freiburg's Bundesliga 2023/24 matches using the local Impect Exam Data.
 
+## Data Source
+
+The data comes from the Impect open-data repository:
+
+```text
+https://github.com/ImpectAPI/open-data
+```
+
 ## Folder Setup
 
 Keep the app files and data files separate:
