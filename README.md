@@ -78,3 +78,8 @@ Possession is estimated from attacking event share because the dataset does not 
 
 ## Notes and Caveats
 - No yellow card data is present in the events_kpis folder.
+
+## TBDs
+- Passing networks per substitution per game for Freiburg and other team
+- xT (best player)
+- Per position radar plot, find consistent coverage / blindspots
