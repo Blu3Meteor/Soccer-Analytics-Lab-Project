@@ -65,7 +65,7 @@ def render_home_page(
     with st.container(border=True):
         render_scoreboard(selected_match, home_id, away_id, home_name, away_name, result_code, squads_by_id)
 
-        overview_tab, lineup_tab, stats_tab, events_tab = st.tabs(["Overview", "Line Ups", "Stats", "Events"])
+        overview_tab, lineup_tab, stats_tab, events_tab = st.tabs(["Overview", "Lineups", "Stats", "Events"])
 
         with overview_tab:
             overview_cols = st.columns(4)

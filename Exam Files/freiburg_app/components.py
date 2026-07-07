@@ -65,7 +65,7 @@ def render_sidebar_menu(current_page: str, selected_match_id: int) -> str:
         '<div class="sidebar-badge">SCF</div>'
         '<div>'
         '<div class="sidebar-brand-title">Freiburg Lab</div>'
-        '<div class="sidebar-brand-subtitle">Bundesliga match analysis</div>'
+        '<div class="sidebar-brand-subtitle">Bundesliga Match Analysis</div>'
         '</div>'
         '</div>'
         '<div class="sidebar-nav">'
