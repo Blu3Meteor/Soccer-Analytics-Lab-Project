@@ -34,6 +34,8 @@ def selected_page_from_query() -> str:
     raw_value = query_param_value("page")
     if raw_value in {"league", "league_table", "table"}:
         return "League Table"
+    if raw_value in {"threat", "attacking_threat", "pxt"}:
+        return "Attacking Threat"
     return "Home Page"
 
 
@@ -54,6 +56,7 @@ def render_scoreboard_logo(team_id: int, name: str, squads: dict[int, dict[str, 
 def render_sidebar_menu(current_page: str, selected_match_id: int) -> str:
     home_active = " sidebar-link-active" if current_page == "Home Page" else ""
     table_active = " sidebar-link-active" if current_page == "League Table" else ""
+    threat_active = " sidebar-link-active" if current_page == "Attacking Threat" else ""
     home_href = f"./?page=home&match_id={int(selected_match_id)}"
 
     st.sidebar.markdown(
@@ -73,6 +76,10 @@ def render_sidebar_menu(current_page: str, selected_match_id: int) -> str:
         f'<a class="sidebar-link{table_active}" href="./?page=league_table" target="_self">'
         '<span class="sidebar-link-title">League Table</span>'
         '<span class="sidebar-link-meta">Bundesliga standings</span>'
+        '</a>'
+        f'<a class="sidebar-link{threat_active}" href="./?page=threat" target="_self">'
+        '<span class="sidebar-link-title">Attacking Threat</span>'
+        '<span class="sidebar-link-meta">Season player pxT ranks</span>'
         '</a>'
         '</div>'
         '<div class="sidebar-footnote">Data: ImpectAPI/open-data</div>'
