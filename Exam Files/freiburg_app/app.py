@@ -20,7 +20,7 @@ def main() -> None:
         st.error(f"Could not find Exam Data at {DATA_ROOT}")
         st.stop()
 
-    squads_by_id, players_by_id, _ = load_reference_data()
+    squads_by_id, players_by_id, matches = load_reference_data()
     summaries, freiburg_id = load_freiburg_match_summaries()
 
     if not summaries:
@@ -45,7 +45,7 @@ def main() -> None:
         st.stop()
 
     if page == "Attacking Threat":
-        render_threat_page(summaries, freiburg_id, players_by_id)
+        render_threat_page(summaries, freiburg_id, players_by_id, squads_by_id, matches)
         st.stop()
 
     if page == "Match Details":
