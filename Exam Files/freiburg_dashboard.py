@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-import math
 from collections import Counter, defaultdict
 from datetime import datetime
+from html import escape
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -114,6 +114,114 @@ st.markdown(
         border-color: var(--freiburg-red);
     }
 
+    .match-strip {
+        display: flex;
+        gap: 0.8rem;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scroll-snap-type: x proximity;
+        padding: 0.15rem 0 0.9rem;
+        margin: 0.1rem 0 0.65rem;
+    }
+
+    .match-strip::-webkit-scrollbar {
+        height: 10px;
+    }
+
+    .match-strip::-webkit-scrollbar-track {
+        background: #edf0f3;
+        border-radius: 999px;
+    }
+
+    .match-strip::-webkit-scrollbar-thumb {
+        background: #aeb7c2;
+        border-radius: 999px;
+    }
+
+    .match-card {
+        flex: 0 0 236px;
+        scroll-snap-align: start;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 0.45rem;
+        min-height: 124px;
+        border: 1px solid var(--soft-border);
+        border-radius: 8px;
+        padding: 0.7rem;
+        background: #ffffff;
+        color: var(--ink);
+        text-decoration: none;
+    }
+
+    .match-card:hover {
+        border-color: var(--freiburg-red);
+        box-shadow: 0 10px 24px rgba(21, 23, 26, 0.08);
+    }
+
+    .match-card-active {
+        border-color: var(--freiburg-red);
+        box-shadow: inset 0 0 0 2px var(--freiburg-red);
+    }
+
+    .match-card-meta {
+        display: flex;
+        justify-content: space-between;
+        color: var(--muted);
+        font-size: 0.72rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .match-card-meta .result-pill {
+        margin-top: 0;
+        padding: 0.12rem 0.45rem;
+        font-size: 0.68rem;
+    }
+
+    .match-card-score {
+        display: grid;
+        grid-template-columns: minmax(54px, 1fr) auto minmax(54px, 1fr);
+        align-items: center;
+        gap: 0.45rem;
+    }
+
+    .match-card-team {
+        display: grid;
+        justify-items: center;
+        gap: 0.25rem;
+        min-width: 0;
+    }
+
+    .match-card-team img {
+        width: 34px;
+        height: 34px;
+        object-fit: contain;
+    }
+
+    .match-card-code {
+        font-size: 0.84rem;
+        font-weight: 900;
+        overflow-wrap: anywhere;
+    }
+
+    .match-card-scoreline {
+        min-width: 62px;
+        text-align: center;
+        font-size: 1.3rem;
+        font-weight: 950;
+        line-height: 1;
+    }
+
+    .match-card-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--muted);
+        font-size: 0.76rem;
+        font-weight: 800;
+    }
+
     .scoreboard {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -213,6 +321,109 @@ st.markdown(
         font-weight: 700;
     }
 
+    .lineup-pitch {
+        position: relative;
+        width: 100%;
+        max-width: 560px;
+        aspect-ratio: 72 / 100;
+        min-height: 520px;
+        margin: 0.4rem auto 1rem;
+        overflow: hidden;
+        border: 2px solid rgba(255, 255, 255, 0.9);
+        border-radius: 8px;
+        background:
+            linear-gradient(rgba(255,255,255,0.16) 2px, transparent 2px) 0 50% / 100% 2px no-repeat,
+            linear-gradient(90deg, rgba(255,255,255,0.12), rgba(255,255,255,0.12)) 0 0 / 100% 100%,
+            repeating-linear-gradient(
+                90deg,
+                #2f8f53 0,
+                #2f8f53 13%,
+                #2b844d 13%,
+                #2b844d 26%
+            );
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+    }
+
+    .lineup-pitch::before,
+    .lineup-pitch::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 2px solid rgba(255, 255, 255, 0.72);
+        pointer-events: none;
+    }
+
+    .lineup-pitch::before {
+        top: -2px;
+        width: 58%;
+        height: 15%;
+        border-top: 0;
+    }
+
+    .lineup-pitch::after {
+        bottom: -2px;
+        width: 58%;
+        height: 15%;
+        border-bottom: 0;
+    }
+
+    .pitch-center-circle {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 26%;
+        aspect-ratio: 1;
+        transform: translate(-50%, -50%);
+        border: 2px solid rgba(255, 255, 255, 0.72);
+        border-radius: 50%;
+    }
+
+    .player-marker {
+        position: absolute;
+        display: grid;
+        justify-items: center;
+        gap: 0.18rem;
+        width: 76px;
+        transform: translate(-50%, -50%);
+        color: #ffffff;
+        text-align: center;
+    }
+
+    .player-shirt {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border: 2px solid rgba(255, 255, 255, 0.95);
+        border-radius: 50%;
+        background: var(--freiburg-red);
+        color: #ffffff;
+        font-size: 0.86rem;
+        font-weight: 900;
+        box-shadow: 0 3px 9px rgba(0, 0, 0, 0.28);
+    }
+
+    .player-name {
+        max-width: 76px;
+        padding: 0.08rem 0.28rem;
+        border-radius: 4px;
+        background: rgba(21, 23, 26, 0.68);
+        font-size: 0.68rem;
+        font-weight: 800;
+        line-height: 1.1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .lineup-note {
+        color: var(--muted);
+        font-size: 0.78rem;
+        margin: -0.25rem 0 0.6rem;
+        text-align: center;
+    }
+
     @media (max-width: 700px) {
         .scoreboard {
             grid-template-columns: 1fr;
@@ -231,6 +442,10 @@ st.markdown(
 
         .align-right {
             text-align: center;
+        }
+
+        .lineup-pitch {
+            min-height: 460px;
         }
     }
     </style>
@@ -298,6 +513,37 @@ def short_team_name(name: str) -> str:
         "1. FC Union Berlin": "Union",
     }
     return replacements.get(name, name)
+
+
+def team_code(name: str) -> str:
+    replacements = {
+        "Bayer 04 Leverkusen": "B04",
+        "FC Bayern München": "FCB",
+        "Borussia Dortmund": "BVB",
+        "Borussia Mönchengladbach": "BMG",
+        "Eintracht Frankfurt": "SGE",
+        "TSG 1899 Hoffenheim": "TSG",
+        "1. FC Heidenheim 1846": "FCH",
+        "SV Werder Bremen": "SVW",
+        "VfL Wolfsburg": "WOB",
+        "1. FSV Mainz 05": "M05",
+        "1. FC Köln": "KOE",
+        "FC Augsburg": "FCA",
+        "VfB Stuttgart": "VFB",
+        "VfL Bochum 1848": "BOC",
+        "SV Darmstadt 98": "SVD",
+        "RB Leipzig": "RBL",
+        "SC Freiburg": "SCF",
+        "1. FC Union Berlin": "FCU",
+    }
+    if name in replacements:
+        return replacements[name]
+    compact = "".join(part[0] for part in name.replace(".", " ").split() if part[:1].isalpha())
+    return compact[:3].upper() or name[:3].upper()
+
+
+def squad_logo_url(team_id: int, squads: dict[int, dict[str, Any]]) -> str:
+    return squads.get(int(team_id), {}).get("imageUrl", "")
 
 
 def player_name(player_id: int | None, players: dict[int, dict[str, Any]]) -> str:
@@ -575,6 +821,116 @@ def lineup_rows(
     return rows
 
 
+def shirt_numbers(lineup: dict[str, Any]) -> dict[int, Any]:
+    return {int(player["id"]): player.get("shirtNumber") for player in lineup.get("players", [])}
+
+
+def player_display_name(player_id: int, players: dict[int, dict[str, Any]]) -> str:
+    name = player_name(player_id, players)
+    if len(name) <= 13:
+        return name
+    parts = name.split()
+    if len(parts) >= 2:
+        return f"{parts[0][0]}. {parts[-1]}"
+    return name[:12]
+
+
+def position_depth(position: str | None) -> float:
+    position = position or ""
+    if position == "GOALKEEPER":
+        return 90
+    if "WINGBACK_DEFENDER" in position:
+        return 66
+    if "DEFENDER" in position or "FULLBACK" in position:
+        return 74
+    if position == "DEFENSE_MIDFIELD":
+        return 58
+    if "MIDFIELD" in position:
+        return 45
+    if "WINGER" in position:
+        return 30
+    if "FORWARD" in position or "STRIKER" in position:
+        return 17
+    return 50
+
+
+def position_width(position_side: str | None) -> float:
+    position_side = position_side or ""
+    side_map = {
+        "LEFT": 18,
+        "CENTRE_LEFT": 38,
+        "CENTER_LEFT": 38,
+        "CENTRE": 50,
+        "CENTER": 50,
+        "CENTRE_RIGHT": 62,
+        "CENTER_RIGHT": 62,
+        "RIGHT": 82,
+    }
+    return side_map.get(position_side, 50)
+
+
+def marker_color(title: str) -> str:
+    return "#c7152a" if title == FREIBURG_NAME else "#1f4d78"
+
+
+def lineup_marker_positions(lineup: dict[str, Any]) -> list[dict[str, Any]]:
+    base_markers = []
+    for position in lineup.get("startingPositions", []):
+        base_markers.append(
+            {
+                "player_id": int(position["playerId"]),
+                "x": position_width(position.get("positionSide")),
+                "y": position_depth(position.get("position")),
+                "position": position.get("position"),
+                "side": position.get("positionSide"),
+            }
+        )
+
+    grouped: dict[tuple[int, int], list[dict[str, Any]]] = defaultdict(list)
+    for marker in base_markers:
+        grouped[(round(marker["x"]), round(marker["y"]))].append(marker)
+
+    for group in grouped.values():
+        if len(group) == 1:
+            continue
+        total = len(group)
+        for index, marker in enumerate(group):
+            offset = index - (total - 1) / 2
+            marker["x"] = min(92, max(8, marker["x"] + offset * 8))
+
+    return base_markers
+
+
+def render_lineup_pitch(
+    title: str,
+    lineup: dict[str, Any],
+    players: dict[int, dict[str, Any]],
+) -> None:
+    shirts = shirt_numbers(lineup)
+    markers = []
+    color = marker_color(title)
+    for marker in lineup_marker_positions(lineup):
+        player_id = marker["player_id"]
+        shirt = shirts.get(player_id, "")
+        full_name = player_name(player_id, players)
+        short_name = player_display_name(player_id, players)
+        markers.append(
+            f'<div class="player-marker" style="left: {marker["x"]:.1f}%; top: {marker["y"]:.1f}%;" '
+            f'title="{escape(full_name)} · {escape(format_position(marker["position"]))}">'
+            f'<div class="player-shirt" style="background: {color};">{escape(str(shirt))}</div>'
+            f'<div class="player-name">{escape(short_name)}</div>'
+            '</div>'
+        )
+
+    st.markdown(
+        '<div class="lineup-pitch">'
+        '<div class="pitch-center-circle"></div>'
+        f'{"".join(markers)}'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+
 def bench_rows(lineup: dict[str, Any], players: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:
     starter_ids = {int(position["playerId"]) for position in lineup.get("startingPositions", [])}
     rows = []
@@ -672,13 +1028,16 @@ def render_lineup_panel(
 ) -> None:
     formation = lineup.get("startingFormation", "Unknown")
     st.markdown(f"**{title} · {formation}**")
-    st.dataframe(lineup_rows(lineup, players), hide_index=True, use_container_width=True)
+    render_lineup_pitch(title, lineup, players)
+    st.markdown('<div class="lineup-note">Starters shown by shirt number and role.</div>', unsafe_allow_html=True)
+    with st.expander("Starting XI", expanded=False):
+        st.dataframe(lineup_rows(lineup, players), hide_index=True, width="stretch")
     with st.expander("Bench", expanded=False):
-        st.dataframe(bench_rows(lineup, players), hide_index=True, use_container_width=True)
+        st.dataframe(bench_rows(lineup, players), hide_index=True, width="stretch")
     with st.expander("Substitutions", expanded=False):
         rows = substitution_rows(lineup, players)
         if rows:
-            st.dataframe(rows, hide_index=True, use_container_width=True)
+            st.dataframe(rows, hide_index=True, width="stretch")
         else:
             st.caption("No substitutions listed.")
 
@@ -690,6 +1049,71 @@ def record_summary(summaries: list[dict[str, Any]]) -> str:
 
 def result_word(code: str) -> str:
     return {"W": "Win", "D": "Draw", "L": "Loss"}.get(code, code)
+
+
+def selected_match_id_from_query() -> int | None:
+    if hasattr(st, "query_params"):
+        raw_value = st.query_params.get("match_id")
+    else:
+        raw_value = st.experimental_get_query_params().get("match_id")
+    if isinstance(raw_value, list):
+        raw_value = raw_value[0] if raw_value else None
+    try:
+        return int(raw_value) if raw_value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def render_team_logo(team_id: int, code: str, squads: dict[int, dict[str, Any]]) -> str:
+    logo_url = squad_logo_url(team_id, squads)
+    if logo_url:
+        return f'<img src="{escape(logo_url)}" alt="{escape(code)} logo">'
+    return f'<div class="match-card-code">{escape(code)}</div>'
+
+
+def render_match_strip(
+    summaries: list[dict[str, Any]],
+    selected_index: int,
+    squads: dict[int, dict[str, Any]],
+) -> None:
+    cards = []
+    for index, match in enumerate(summaries):
+        home_id = int(match["homeSquadId"])
+        away_id = int(match["awaySquadId"])
+        home_code = team_code(match["homeName"])
+        away_code = team_code(match["awayName"])
+        active_class = " match-card-active" if index == selected_index else ""
+        result_code = match["freiburgResult"]
+        scoreline = f"{match['homeScore']} - {match['awayScore']}"
+        href = f"./?match_id={int(match['id'])}"
+        label = (
+            f"{team_name(home_id, squads)} {scoreline} {team_name(away_id, squads)}, "
+            f"{result_word(result_code)} for Freiburg"
+        )
+        cards.append(
+            f'<a class="match-card{active_class}" href="{href}" target="_self" aria-label="{escape(label)}">'
+            '<div class="match-card-meta">'
+            f'<span>{escape(compact_matchday(match))}</span>'
+            f'<span class="result-pill result-{escape(result_code)}">{escape(result_code)}</span>'
+            '</div>'
+            '<div class="match-card-score">'
+            '<div class="match-card-team">'
+            f'{render_team_logo(home_id, home_code, squads)}'
+            f'<div class="match-card-code">{escape(home_code)}</div>'
+            '</div>'
+            f'<div class="match-card-scoreline">{escape(scoreline)}</div>'
+            '<div class="match-card-team">'
+            f'{render_team_logo(away_id, away_code, squads)}'
+            f'<div class="match-card-code">{escape(away_code)}</div>'
+            '</div>'
+            '</div>'
+            '<div class="match-card-footer">'
+            f'<span>{escape(format_date(match["scheduledDate"]).split(",", 1)[0])}</span>'
+            f'<span>{escape(team_code(match["opponentName"]))}</span>'
+            '</div>'
+            '</a>'
+        )
+    st.markdown(f'<div class="match-strip">{"".join(cards)}</div>', unsafe_allow_html=True)
 
 
 def rerun_app() -> None:
@@ -714,6 +1138,13 @@ if not summaries:
 if "selected_match_index" not in st.session_state:
     st.session_state.selected_match_index = 0
 
+query_match_id = selected_match_id_from_query()
+if query_match_id is not None:
+    for index, match in enumerate(summaries):
+        if int(match["id"]) == query_match_id:
+            st.session_state.selected_match_index = index
+            break
+
 selected_index = min(max(int(st.session_state.selected_match_index), 0), len(summaries) - 1)
 
 st.markdown('<div class="headline-row">', unsafe_allow_html=True)
@@ -733,38 +1164,7 @@ with right:
     )
 st.markdown("</div>", unsafe_allow_html=True)
 
-slider_value = st.slider(
-    "SC Freiburg matches",
-    min_value=1,
-    max_value=len(summaries),
-    value=selected_index + 1,
-    label_visibility="collapsed",
-)
-if slider_value - 1 != selected_index:
-    st.session_state.selected_match_index = slider_value - 1
-    selected_index = slider_value - 1
-
-cards_per_row = 6
-for row_start in range(0, len(summaries), cards_per_row):
-    columns = st.columns(cards_per_row)
-    for offset, column in enumerate(columns):
-        index = row_start + offset
-        if index >= len(summaries):
-            continue
-        match = summaries[index]
-        home_short = short_team_name(match["homeName"])
-        away_short = short_team_name(match["awayName"])
-        scoreline = f"{match['homeScore']}-{match['awayScore']}"
-        opponent = short_team_name(match["opponentName"])
-        label = f"{compact_matchday(match)}\n{home_short} {scoreline} {away_short}\n{match['freiburgResult']} vs {opponent}"
-        if column.button(
-            label,
-            key=f"match_card_{match['id']}",
-            use_container_width=True,
-            type="primary" if index == selected_index else "secondary",
-        ):
-            st.session_state.selected_match_index = index
-            rerun_app()
+render_match_strip(summaries, selected_index, squads_by_id)
 
 selected_match = summaries[selected_index]
 events = load_match_events(int(selected_match["id"]))
@@ -817,7 +1217,7 @@ with st.container(border=True):
         goals = scoring_events(events, selected_match, players_by_id, squads_by_id)
         st.markdown("**Scoring**")
         if goals:
-            st.dataframe(goals, hide_index=True, use_container_width=True)
+            st.dataframe(goals, hide_index=True, width="stretch")
         else:
             st.caption("No goals recorded.")
 
@@ -830,21 +1230,20 @@ with st.container(border=True):
 
     with stats_tab:
         render_stat_comparison(rows, home_short, away_short)
-        st.dataframe(rows, hide_index=True, use_container_width=True)
 
     with events_tab:
         event_cols = st.columns(2)
         with event_cols[0]:
             st.markdown("**Goals**")
             if goals:
-                st.dataframe(goals, hide_index=True, use_container_width=True)
+                st.dataframe(goals, hide_index=True, width="stretch")
             else:
                 st.caption("No goals recorded.")
         with event_cols[1]:
             cards = card_events(events, players_by_id, squads_by_id)
             st.markdown("**Cards**")
             if cards:
-                st.dataframe(cards, hide_index=True, use_container_width=True)
+                st.dataframe(cards, hide_index=True, width="stretch")
             else:
                 st.caption("No card events recorded.")
 
@@ -865,4 +1264,4 @@ with st.container(border=True):
                 }
             )
         with st.expander("Shots", expanded=False):
-            st.dataframe(shot_rows, hide_index=True, use_container_width=True)
+            st.dataframe(shot_rows, hide_index=True, width="stretch")
