@@ -30,6 +30,7 @@ KPI_SECOND_YELLOW_CARD = 1638
 st.set_page_config(
     page_title="SC Freiburg Match Dashboard",
     layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
 
@@ -48,6 +49,103 @@ st.markdown(
     .block-container {
         padding-top: 1.4rem;
         padding-bottom: 2.5rem;
+    }
+
+    [data-testid="stSidebar"] {
+        background: #f8fafc;
+        border-right: 1px solid #e3e7ed;
+    }
+
+    [data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+        padding: 1.15rem 0.85rem;
+    }
+
+    .sidebar-shell {
+        display: grid;
+        gap: 0.85rem;
+    }
+
+    .sidebar-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        padding: 0.2rem 0.1rem 0.85rem;
+        border-bottom: 1px solid #e3e7ed;
+    }
+
+    .sidebar-badge {
+        display: grid;
+        place-items: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 8px;
+        background: var(--freiburg-red);
+        color: #ffffff;
+        font-size: 0.8rem;
+        font-weight: 950;
+    }
+
+    .sidebar-brand-title {
+        color: var(--ink);
+        font-size: 1rem;
+        font-weight: 900;
+        line-height: 1.1;
+    }
+
+    .sidebar-brand-subtitle {
+        color: var(--muted);
+        font-size: 0.73rem;
+        font-weight: 750;
+        margin-top: 0.12rem;
+    }
+
+    .sidebar-nav {
+        display: grid;
+        gap: 0.55rem;
+    }
+
+    .sidebar-link {
+        display: grid;
+        gap: 0.12rem;
+        padding: 0.72rem 0.78rem;
+        border: 1px solid #e1e7ef;
+        border-radius: 8px;
+        background: #ffffff;
+        color: var(--ink) !important;
+        text-decoration: none !important;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+
+    .sidebar-link:hover {
+        border-color: var(--freiburg-red);
+        background: #fff7f8;
+    }
+
+    .sidebar-link-active {
+        border-color: var(--freiburg-red);
+        background: #fff3f5;
+        box-shadow: inset 3px 0 0 var(--freiburg-red);
+    }
+
+    .sidebar-link-title {
+        color: var(--ink);
+        font-size: 0.95rem;
+        font-weight: 880;
+        line-height: 1.15;
+    }
+
+    .sidebar-link-meta {
+        color: var(--muted);
+        font-size: 0.74rem;
+        font-weight: 720;
+    }
+
+    .sidebar-footnote {
+        border-top: 1px solid #e3e7ed;
+        color: var(--muted);
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 0.75rem 0.12rem 0;
     }
 
     h1, h2, h3 {
@@ -276,6 +374,34 @@ st.markdown(
         overflow-wrap: anywhere;
     }
 
+    .scoreboard-team {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        min-width: 0;
+    }
+
+    .scoreboard-team-away {
+        justify-content: flex-end;
+    }
+
+    .scoreboard-team-away .scoreboard-team-text {
+        text-align: right;
+    }
+
+    .scoreboard-logo {
+        width: 58px;
+        height: 58px;
+        object-fit: contain;
+        flex: 0 0 58px;
+    }
+
+    .scoreboard-center {
+        display: grid;
+        justify-items: center;
+        text-align: center;
+    }
+
     .team-meta {
         color: var(--muted);
         font-size: 0.85rem;
@@ -356,6 +482,68 @@ st.markdown(
         color: var(--muted);
         font-size: 0.76rem;
         font-weight: 700;
+    }
+
+    .league-table-wrap {
+        border: 1px solid var(--soft-border);
+        border-radius: 8px;
+        overflow: hidden;
+        background: #ffffff;
+    }
+
+    .league-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .league-table th {
+        background: #f5f7f9;
+        color: var(--muted);
+        font-size: 0.74rem;
+        font-weight: 850;
+        padding: 0.62rem 0.65rem;
+        text-align: right;
+        text-transform: uppercase;
+    }
+
+    .league-table th:nth-child(2) {
+        text-align: left;
+    }
+
+    .league-table td {
+        border-top: 1px solid #edf0f3;
+        color: var(--ink);
+        font-size: 0.88rem;
+        font-weight: 700;
+        padding: 0.62rem 0.65rem;
+        text-align: right;
+    }
+
+    .league-table td:nth-child(2) {
+        text-align: left;
+    }
+
+    .league-table-club {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        min-width: 0;
+    }
+
+    .league-table-logo {
+        width: 26px;
+        height: 26px;
+        object-fit: contain;
+        flex: 0 0 26px;
+    }
+
+    .league-table-freiburg td {
+        background: #fff3f5;
+        color: #8f1020;
+    }
+
+    .league-table-points {
+        font-weight: 950;
     }
 
     .lineup-pitch {
@@ -469,6 +657,15 @@ st.markdown(
 
         .scoreline {
             min-width: 0;
+        }
+
+        .scoreboard-team,
+        .scoreboard-team-away {
+            justify-content: center;
+        }
+
+        .scoreboard-team-away .scoreboard-team-text {
+            text-align: center;
         }
 
         .stat-row {
@@ -661,6 +858,72 @@ def compute_score(events: list[dict[str, Any]], home_id: int, away_id: int) -> d
             other_id = int(away_id) if int(squad_id) == int(home_id) else int(home_id)
             score[other_id] += 1
     return score
+
+
+@st.cache_data(show_spinner=False)
+def build_league_table() -> list[dict[str, Any]]:
+    squads, _, matches = load_reference_data()
+    table = {
+        squad_id: {
+            "team_id": squad_id,
+            "team": squad["name"],
+            "played": 0,
+            "wins": 0,
+            "draws": 0,
+            "losses": 0,
+            "goals_for": 0,
+            "goals_against": 0,
+            "goal_difference": 0,
+            "points": 0,
+        }
+        for squad_id, squad in squads.items()
+    }
+
+    for match in matches:
+        home_id = int(match["homeSquadId"])
+        away_id = int(match["awaySquadId"])
+        events = load_match_events(int(match["id"]))
+        score = compute_score(events, home_id, away_id)
+        home_goals = score[home_id]
+        away_goals = score[away_id]
+
+        table[home_id]["played"] += 1
+        table[away_id]["played"] += 1
+        table[home_id]["goals_for"] += home_goals
+        table[home_id]["goals_against"] += away_goals
+        table[away_id]["goals_for"] += away_goals
+        table[away_id]["goals_against"] += home_goals
+
+        if home_goals > away_goals:
+            table[home_id]["wins"] += 1
+            table[home_id]["points"] += 3
+            table[away_id]["losses"] += 1
+        elif home_goals < away_goals:
+            table[away_id]["wins"] += 1
+            table[away_id]["points"] += 3
+            table[home_id]["losses"] += 1
+        else:
+            table[home_id]["draws"] += 1
+            table[away_id]["draws"] += 1
+            table[home_id]["points"] += 1
+            table[away_id]["points"] += 1
+
+    rows = []
+    for row in table.values():
+        row["goal_difference"] = row["goals_for"] - row["goals_against"]
+        rows.append(row)
+
+    rows.sort(
+        key=lambda row: (
+            -row["points"],
+            -row["goal_difference"],
+            -row["goals_for"],
+            row["team"],
+        )
+    )
+    for position, row in enumerate(rows, start=1):
+        row["position"] = position
+    return rows
 
 
 def result_code_for_freiburg(match: dict[str, Any], score: dict[int, int], freiburg_id: int) -> str:
@@ -1112,7 +1375,7 @@ def render_season_record_card(record: dict[str, int]) -> str:
 def points_progression(summaries: list[dict[str, Any]]) -> list[dict[str, int]]:
     points_by_result = {"W": 3, "D": 1, "L": 0}
     total = 0
-    rows = []
+    rows = [{"Game": 0, "Points": 0}]
     for game_number, summary in enumerate(summaries, start=1):
         total += points_by_result.get(summary["freiburgResult"], 0)
         rows.append({"Game": game_number, "Points": total})
@@ -1123,17 +1386,29 @@ def result_word(code: str) -> str:
     return {"W": "Win", "D": "Draw", "L": "Loss"}.get(code, code)
 
 
-def selected_match_id_from_query() -> int | None:
+def query_param_value(name: str) -> str | None:
     if hasattr(st, "query_params"):
-        raw_value = st.query_params.get("match_id")
+        raw_value = st.query_params.get(name)
     else:
-        raw_value = st.experimental_get_query_params().get("match_id")
+        raw_value = st.experimental_get_query_params().get(name)
     if isinstance(raw_value, list):
         raw_value = raw_value[0] if raw_value else None
+    return str(raw_value) if raw_value is not None else None
+
+
+def selected_match_id_from_query() -> int | None:
+    raw_value = query_param_value("match_id")
     try:
         return int(raw_value) if raw_value is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def selected_page_from_query() -> str:
+    raw_value = query_param_value("page")
+    if raw_value in {"league", "league_table", "table"}:
+        return "League Table"
+    return "Home Page"
 
 
 def render_team_logo(team_id: int, code: str, squads: dict[int, dict[str, Any]]) -> str:
@@ -1141,6 +1416,93 @@ def render_team_logo(team_id: int, code: str, squads: dict[int, dict[str, Any]])
     if logo_url:
         return f'<img src="{escape(logo_url)}" alt="{escape(code)} logo">'
     return f'<div class="match-card-code">{escape(code)}</div>'
+
+
+def render_scoreboard_logo(team_id: int, name: str, squads: dict[int, dict[str, Any]]) -> str:
+    logo_url = squad_logo_url(team_id, squads)
+    if not logo_url:
+        return ""
+    return f'<img class="scoreboard-logo" src="{escape(logo_url)}" alt="{escape(name)} logo">'
+
+
+def render_sidebar_menu(current_page: str, selected_match_id: int) -> str:
+    home_active = " sidebar-link-active" if current_page == "Home Page" else ""
+    table_active = " sidebar-link-active" if current_page == "League Table" else ""
+    home_href = f"./?page=home&match_id={int(selected_match_id)}"
+
+    st.sidebar.markdown(
+        '<div class="sidebar-shell">'
+        '<div class="sidebar-brand">'
+        '<div class="sidebar-badge">SCF</div>'
+        '<div>'
+        '<div class="sidebar-brand-title">Freiburg Lab</div>'
+        '<div class="sidebar-brand-subtitle">Bundesliga match analysis</div>'
+        '</div>'
+        '</div>'
+        '<div class="sidebar-nav">'
+        f'<a class="sidebar-link{home_active}" href="{home_href}" target="_self">'
+        '<span class="sidebar-link-title">Home Page</span>'
+        '<span class="sidebar-link-meta">Matches, lineups, stats</span>'
+        '</a>'
+        f'<a class="sidebar-link{table_active}" href="./?page=league_table" target="_self">'
+        '<span class="sidebar-link-title">League Table</span>'
+        '<span class="sidebar-link-meta">Bundesliga standings</span>'
+        '</a>'
+        '</div>'
+        '<div class="sidebar-footnote">Data: ImpectAPI/open-data</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+    return current_page
+
+
+def render_league_table_page(squads: dict[int, dict[str, Any]]) -> None:
+    rows = build_league_table()
+    st.markdown('<div class="headline-row">', unsafe_allow_html=True)
+    st.markdown('<div class="app-kicker">Bundesliga 2023/24 · League Table</div>', unsafe_allow_html=True)
+    st.title("League Table")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    html_rows = []
+    for row in rows:
+        team_id = int(row["team_id"])
+        logo_url = squad_logo_url(team_id, squads)
+        logo_html = (
+            f'<img class="league-table-logo" src="{escape(logo_url)}" alt="{escape(row["team"])} logo">'
+            if logo_url
+            else ""
+        )
+        row_class = "league-table-freiburg" if row["team"] == FREIBURG_NAME else ""
+        html_rows.append(
+            f'<tr class="{row_class}">'
+            f'<td>{row["position"]}</td>'
+            '<td>'
+            '<div class="league-table-club">'
+            f'{logo_html}<span>{escape(row["team"])}</span>'
+            '</div>'
+            '</td>'
+            f'<td>{row["played"]}</td>'
+            f'<td>{row["wins"]}</td>'
+            f'<td>{row["draws"]}</td>'
+            f'<td>{row["losses"]}</td>'
+            f'<td>{row["goals_for"]}</td>'
+            f'<td>{row["goals_against"]}</td>'
+            f'<td>{row["goal_difference"]:+d}</td>'
+            f'<td class="league-table-points">{row["points"]}</td>'
+            '</tr>'
+        )
+
+    st.markdown(
+        '<div class="league-table-wrap">'
+        '<table class="league-table">'
+        '<thead><tr>'
+        '<th>#</th><th>Club</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th>'
+        '</tr></thead>'
+        f'<tbody>{"".join(html_rows)}</tbody>'
+        '</table>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def render_match_strip(
@@ -1157,7 +1519,7 @@ def render_match_strip(
         active_class = " match-card-active" if index == selected_index else ""
         result_code = match["freiburgResult"]
         scoreline = f"{match['homeScore']} - {match['awayScore']}"
-        href = f"./?match_id={int(match['id'])}"
+        href = f"./?page=home&match_id={int(match['id'])}"
         label = (
             f"{team_name(home_id, squads)} {scoreline} {team_name(away_id, squads)}, "
             f"{result_word(result_code)} for Freiburg"
@@ -1220,6 +1582,11 @@ if query_match_id is not None:
 selected_index = min(max(int(st.session_state.selected_match_index), 0), len(summaries) - 1)
 record = season_record(summaries)
 points_chart_data = points_progression(summaries)
+page = render_sidebar_menu(selected_page_from_query(), int(summaries[selected_index]["id"]))
+
+if page == "League Table":
+    render_league_table_page(squads_by_id)
+    st.stop()
 
 st.markdown('<div class="headline-row">', unsafe_allow_html=True)
 left, right = st.columns([0.74, 0.26])
@@ -1254,17 +1621,23 @@ with st.container(border=True):
     st.markdown(
         f"""
         <div class="scoreboard">
-            <div>
-                <div class="team-name">{home_name}</div>
-                <div class="team-meta">Home · {compact_matchday(selected_match)}</div>
+            <div class="scoreboard-team">
+                {render_scoreboard_logo(home_id, home_name, squads_by_id)}
+                <div class="scoreboard-team-text">
+                    <div class="team-name">{home_name}</div>
+                    <div class="team-meta">Home · {compact_matchday(selected_match)}</div>
+                </div>
             </div>
-            <div>
+            <div class="scoreboard-center">
                 <div class="scoreline">{selected_match["homeScore"]}-{selected_match["awayScore"]}</div>
                 <div class="result-pill result-{result_code}">{result_word(result_code)} for Freiburg</div>
             </div>
-            <div style="text-align: right;">
-                <div class="team-name">{away_name}</div>
-                <div class="team-meta">Away · {format_date(selected_match["scheduledDate"])}</div>
+            <div class="scoreboard-team scoreboard-team-away">
+                <div class="scoreboard-team-text">
+                    <div class="team-name">{away_name}</div>
+                    <div class="team-meta">Away · {format_date(selected_match["scheduledDate"])}</div>
+                </div>
+                {render_scoreboard_logo(away_id, away_name, squads_by_id)}
             </div>
         </div>
         """,
