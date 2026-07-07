@@ -20,7 +20,7 @@ def _fit_poisson_glm(
     tolerance: float = 1e-8,
     ridge: float = 1e-5,
 ) -> dict[str, Any]:
-    baseline_team = FREIBURG_NAME if FREIBURG_NAME in teams else teams[0]
+    baseline_team = FREIBURG_NAME
     ordered_teams = [baseline_team] + [team for team in teams if team != baseline_team]
     parameter_names = ["Intercept", "home"]
     parameter_names.extend(f"team:{team}" for team in ordered_teams[1:])
