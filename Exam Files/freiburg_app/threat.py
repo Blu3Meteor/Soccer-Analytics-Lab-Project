@@ -29,7 +29,7 @@ from .config import (
     KPI_PXT_SETPIECE,
     KPI_PXT_SHOT,
 )
-from .data import load_match_player_kpis, player_name
+from .data import load_match_player_kpis, player_name, team_name
 
 
 ATTACK_SOURCE_KPIS = {
@@ -54,14 +54,6 @@ OPP_THREAT_KPIS = {
 }
 
 
-def _freiburg_side(player_kpis: dict[str, Any], freiburg_id: int) -> dict[str, Any] | None:
-    for key in ("squadHome", "squadAway"):
-        side = player_kpis.get(key, {})
-        if int(side.get("id", -1)) == int(freiburg_id):
-            return side
-    return None
-
-
 def _player_kpi_map(player: dict[str, Any]) -> dict[int, float]:
     totals: dict[int, float] = defaultdict(float)
     for kpi in player.get("kpis", []):
@@ -69,75 +61,191 @@ def _player_kpi_map(player: dict[str, Any]) -> dict[int, float]:
     return totals
 
 
+def _position_group(position: str | None) -> str:
+    value = position or ""
+    if "GOALKEEPER" in value:
+        return "GK"
+    if "FORWARD" in value or "WINGER" in value:
+        return "Attack"
+    if "MIDFIELD" in value:
+        return "Midfield"
+    if "DEFENDER" in value or "WINGBACK" in value:
+        return "Defense"
+    return "Unknown"
+
+
+def _empty_player_row(
+    player_id: int,
+    team_id: int,
+    position: str | None,
+    players_by_id: dict[int, dict[str, Any]],
+    squads_by_id: dict[int, dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "Player": player_name(player_id, players_by_id),
+        "Player ID": player_id,
+        "Team": team_name(team_id, squads_by_id),
+        "Team ID": team_id,
+        "Position": position or "",
+        "Position Group": _position_group(position),
+        "_Match IDs": set(),
+        "_Position Minutes": defaultdict(float),
+        "_Raw Position Minutes": defaultdict(float),
+        "Matches": 0,
+        "Minutes": 0.0,
+        "PXT Attack": 0.0,
+        "PXT Defend": 0.0,
+        "Opponent Threat While Attacking": 0.0,
+        "Opponent Threat While Defending": 0.0,
+        "Net Threat": 0.0,
+        "Receiving PXT": 0.0,
+        "No Video PXT": 0.0,
+        "Opponent No Video PXT": 0.0,
+    }
+
+
+def _add_player_segment(row: dict[str, Any], player: dict[str, Any], match_id: int) -> None:
+    duration = float(player.get("playDuration") or 0) / 60
+    position = player.get("position") or ""
+    if duration > 0:
+        row["_Match IDs"].add(match_id)
+        row["_Position Minutes"][_position_group(position)] += duration
+        row["_Raw Position Minutes"][position] += duration
+    row["Minutes"] += duration
+
+    kpis = _player_kpi_map(player)
+    row["PXT Attack"] += kpis[KPI_PXT_ATTACK]
+    row["PXT Defend"] += kpis[KPI_PXT_DEFEND]
+    row["Opponent Threat While Attacking"] += kpis[KPI_DEF_PXT_ATTACK]
+    row["Opponent Threat While Defending"] += kpis[KPI_DEF_PXT_DEFEND]
+    row["Receiving PXT"] += kpis[KPI_PXT_REC]
+    row["No Video PXT"] += kpis[KPI_PXT_NO_VIDEO]
+    row["Opponent No Video PXT"] += kpis[KPI_OPP_PXT_NO_VIDEO]
+
+    for label, kpi_id in ATTACK_SOURCE_KPIS.items():
+        row[label] = row.get(label, 0.0) + kpis[kpi_id]
+    for label, kpi_id in OPP_THREAT_KPIS.items():
+        row[label] = row.get(label, 0.0) + kpis[kpi_id]
+
+
+def _finalize_player_row(row: dict[str, Any]) -> dict[str, Any]:
+    row["Matches"] = len(row.pop("_Match IDs"))
+    position_minutes = row.pop("_Position Minutes")
+    raw_position_minutes = row.pop("_Raw Position Minutes")
+    if position_minutes:
+        row["Position Group"] = max(position_minutes.items(), key=lambda item: item[1])[0]
+    if raw_position_minutes:
+        row["Position"] = max(raw_position_minutes.items(), key=lambda item: item[1])[0]
+    row["Net Threat"] = row["PXT Attack"] - row["Opponent Threat While Attacking"]
+    row["PXT / 90"] = (row["PXT Attack"] / row["Minutes"] * 90) if row["Minutes"] else 0.0
+    row["Net / 90"] = (row["Net Threat"] / row["Minutes"] * 90) if row["Minutes"] else 0.0
+    row["Receiving PXT / 90"] = (row["Receiving PXT"] / row["Minutes"] * 90) if row["Minutes"] else 0.0
+    row["Shot / 90"] = (row.get("Shot", 0.0) / row["Minutes"] * 90) if row["Minutes"] else 0.0
+    row["Pass / 90"] = (row.get("Pass", 0.0) / row["Minutes"] * 90) if row["Minutes"] else 0.0
+    row["Dribble / 90"] = (row.get("Dribble", 0.0) / row["Minutes"] * 90) if row["Minutes"] else 0.0
+    row["Minutes"] = round(row["Minutes"], 0)
+    for key, value in list(row.items()):
+        if isinstance(value, float) and key != "Minutes":
+            row[key] = round(value, 4)
+    return row
+
+
+def _percentile(value: float, values: list[float]) -> float:
+    if not values:
+        return 0.0
+    below = sum(1 for item in values if item < value)
+    equal = sum(1 for item in values if item == value)
+    return round(((below + (0.5 * equal)) / len(values)) * 100, 0)
+
+
 @st.cache_data(show_spinner=False)
 def season_player_threat_rows(
     match_ids: tuple[int, ...],
-    freiburg_id: int,
     players_by_id: dict[int, dict[str, Any]],
+    squads_by_id: dict[int, dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    player_totals: dict[int, dict[str, Any]] = {}
+    player_totals: dict[tuple[int, int], dict[str, Any]] = {}
 
     for match_id in match_ids:
-        side = _freiburg_side(load_match_player_kpis(match_id), freiburg_id)
-        if not side:
-            continue
+        player_kpis = load_match_player_kpis(match_id)
+        for side_key in ("squadHome", "squadAway"):
+            side = player_kpis.get(side_key, {})
+            team_id = int(side.get("id", -1))
+            if team_id < 0:
+                continue
+            for player in side.get("players", []):
+                player_id = int(player["id"])
+                key = (team_id, player_id)
+                row = player_totals.setdefault(
+                    key,
+                    _empty_player_row(player_id, team_id, player.get("position"), players_by_id, squads_by_id),
+                )
+                _add_player_segment(row, player, match_id)
 
-        for player in side.get("players", []):
-            player_id = int(player["id"])
-            row = player_totals.setdefault(
-                player_id,
-                {
-                    "Player": player_name(player_id, players_by_id),
-                    "Player ID": player_id,
-                    "Position": player.get("position", ""),
-                    "_Match IDs": set(),
-                    "Matches": 0,
-                    "Minutes": 0.0,
-                    "PXT Attack": 0.0,
-                    "PXT Defend": 0.0,
-                    "Opponent Threat While Attacking": 0.0,
-                    "Opponent Threat While Defending": 0.0,
-                    "Net Threat": 0.0,
-                    "Receiving PXT": 0.0,
-                    "No Video PXT": 0.0,
-                    "Opponent No Video PXT": 0.0,
-                },
-            )
-
-            duration = float(player.get("playDuration") or 0)
-            if duration > 0:
-                row["_Match IDs"].add(match_id)
-            row["Minutes"] += duration / 60
-
-            kpis = _player_kpi_map(player)
-            row["PXT Attack"] += kpis[KPI_PXT_ATTACK]
-            row["PXT Defend"] += kpis[KPI_PXT_DEFEND]
-            row["Opponent Threat While Attacking"] += kpis[KPI_DEF_PXT_ATTACK]
-            row["Opponent Threat While Defending"] += kpis[KPI_DEF_PXT_DEFEND]
-            row["Receiving PXT"] += kpis[KPI_PXT_REC]
-            row["No Video PXT"] += kpis[KPI_PXT_NO_VIDEO]
-            row["Opponent No Video PXT"] += kpis[KPI_OPP_PXT_NO_VIDEO]
-
-            for label, kpi_id in ATTACK_SOURCE_KPIS.items():
-                row[label] = row.get(label, 0.0) + kpis[kpi_id]
-            for label, kpi_id in OPP_THREAT_KPIS.items():
-                row[label] = row.get(label, 0.0) + kpis[kpi_id]
-
-    rows = []
-    for row in player_totals.values():
-        row["Matches"] = len(row.pop("_Match IDs"))
-        row["Net Threat"] = row["PXT Attack"] - row["Opponent Threat While Attacking"]
-        row["PXT / 90"] = (row["PXT Attack"] / row["Minutes"] * 90) if row["Minutes"] else 0.0
-        row["Net / 90"] = (row["Net Threat"] / row["Minutes"] * 90) if row["Minutes"] else 0.0
-        row["Minutes"] = round(row["Minutes"], 0)
-        for key, value in list(row.items()):
-            if isinstance(value, float) and key != "Minutes":
-                row[key] = round(value, 4)
-        rows.append(row)
-
+    rows = [_finalize_player_row(row) for row in player_totals.values()]
     rows.sort(key=lambda item: (-float(item["PXT Attack"]), -float(item["Net Threat"]), item["Player"]))
     for rank, row in enumerate(rows, start=1):
         row["Rank"] = rank
+    return rows
+
+
+@st.cache_data(show_spinner=False)
+def season_team_threat_rows(
+    match_ids: tuple[int, ...],
+    squads_by_id: dict[int, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    team_totals: dict[int, dict[str, Any]] = {}
+
+    for match_id in match_ids:
+        player_kpis = load_match_player_kpis(match_id)
+        for side_key in ("squadHome", "squadAway"):
+            side = player_kpis.get(side_key, {})
+            team_id = int(side.get("id", -1))
+            if team_id < 0:
+                continue
+            row = team_totals.setdefault(
+                team_id,
+                {
+                    "Team": team_name(team_id, squads_by_id),
+                    "Team ID": team_id,
+                    "_Match IDs": set(),
+                    "PXT Attack": 0.0,
+                    "Opponent Threat While Attacking": 0.0,
+                    "Net Threat": 0.0,
+                    "Shot": 0.0,
+                    "Pass": 0.0,
+                    "Dribble": 0.0,
+                    "Set Piece": 0.0,
+                },
+            )
+            row["_Match IDs"].add(match_id)
+            for player in side.get("players", []):
+                kpis = _player_kpi_map(player)
+                row["PXT Attack"] += kpis[KPI_PXT_ATTACK]
+                row["Opponent Threat While Attacking"] += kpis[KPI_DEF_PXT_ATTACK]
+                row["Shot"] += kpis[KPI_PXT_SHOT]
+                row["Pass"] += kpis[KPI_PXT_PASS]
+                row["Dribble"] += kpis[KPI_PXT_DRIBBLE]
+                row["Set Piece"] += kpis[KPI_PXT_SETPIECE]
+
+    rows = []
+    for row in team_totals.values():
+        matches = len(row.pop("_Match IDs"))
+        row["Matches"] = matches
+        row["Net Threat"] = row["PXT Attack"] - row["Opponent Threat While Attacking"]
+        row["PXT / Match"] = row["PXT Attack"] / matches if matches else 0.0
+        row["Net / Match"] = row["Net Threat"] / matches if matches else 0.0
+        for key, value in list(row.items()):
+            if isinstance(value, float):
+                row[key] = round(value, 4)
+        rows.append(row)
+
+    rows.sort(key=lambda item: (-float(item["PXT / Match"]), -float(item["Net / Match"]), item["Team"]))
+    for rank, row in enumerate(rows, start=1):
+        row["PXT Rank"] = rank
+    values = [float(row["PXT / Match"]) for row in rows]
+    for row in rows:
+        row["Team PXT Percentile"] = _percentile(float(row["PXT / Match"]), values)
     return rows
 
 
@@ -150,14 +258,42 @@ def _summary_totals(rows: list[dict[str, Any]]) -> dict[str, float]:
     }
 
 
+def _add_position_percentiles(
+    freiburg_rows: list[dict[str, Any]],
+    all_rows: list[dict[str, Any]],
+    minimum_minutes: int,
+) -> list[dict[str, Any]]:
+    eligible = [row for row in all_rows if float(row["Minutes"]) >= minimum_minutes]
+    pxt_groups: dict[str, list[float]] = defaultdict(list)
+    net_groups: dict[str, list[float]] = defaultdict(list)
+    for row in eligible:
+        group = row["Position Group"]
+        pxt_groups[group].append(float(row["PXT / 90"]))
+        net_groups[group].append(float(row["Net / 90"]))
+
+    enriched = []
+    for row in freiburg_rows:
+        copy = dict(row)
+        group = copy["Position Group"]
+        copy["PXT / 90 Percentile"] = _percentile(float(copy["PXT / 90"]), pxt_groups[group])
+        copy["Net / 90 Percentile"] = _percentile(float(copy["Net / 90"]), net_groups[group])
+        enriched.append(copy)
+    return enriched
+
+
 def render_threat_page(
     summaries: list[dict[str, Any]],
     freiburg_id: int,
     players_by_id: dict[int, dict[str, Any]],
+    squads_by_id: dict[int, dict[str, Any]],
+    matches: list[dict[str, Any]],
 ) -> None:
-    match_ids = tuple(int(match["id"]) for match in summaries)
-    rows = season_player_threat_rows(match_ids, freiburg_id, players_by_id)
-    totals = _summary_totals(rows)
+    all_match_ids = tuple(int(match["id"]) for match in matches)
+    all_player_rows = season_player_threat_rows(all_match_ids, players_by_id, squads_by_id)
+    team_rows = season_team_threat_rows(all_match_ids, squads_by_id)
+    freiburg_rows = [row for row in all_player_rows if int(row["Team ID"]) == int(freiburg_id)]
+    totals = _summary_totals(freiburg_rows)
+    freiburg_team = next(row for row in team_rows if int(row["Team ID"]) == int(freiburg_id))
 
     st.markdown('<div class="headline-row">', unsafe_allow_html=True)
     st.markdown('<div class="app-kicker">Bundesliga 2023/24 · SC Freiburg</div>', unsafe_allow_html=True)
@@ -165,41 +301,69 @@ def render_threat_page(
     st.markdown("</div>", unsafe_allow_html=True)
 
     metric_cols = st.columns(4)
-    metric_cols[0].metric("Total PXT Attack", f"{totals['PXT Attack']:.2f}")
-    metric_cols[1].metric("Net Threat", f"{totals['Net Threat']:.2f}")
-    metric_cols[2].metric("Shot PXT", f"{totals['Shot']:.2f}")
-    metric_cols[3].metric("Pass PXT", f"{totals['Pass']:.2f}")
+    metric_cols[0].metric("Team PXT / Match", f"{freiburg_team['PXT / Match']:.2f}")
+    metric_cols[1].metric("League Rank", f"{freiburg_team['PXT Rank']} / {len(team_rows)}")
+    metric_cols[2].metric("Team Percentile", f"{freiburg_team['Team PXT Percentile']:.0f}")
+    metric_cols[3].metric("Net / Match", f"{freiburg_team['Net / Match']:.2f}")
+
+    with st.expander("Freiburg total sources", expanded=False):
+        source_cols = st.columns(4)
+        source_cols[0].metric("Total PXT Attack", f"{totals['PXT Attack']:.2f}")
+        source_cols[1].metric("Net Threat", f"{totals['Net Threat']:.2f}")
+        source_cols[2].metric("Shot PXT", f"{totals['Shot']:.2f}")
+        source_cols[3].metric("Pass PXT", f"{totals['Pass']:.2f}")
 
     st.divider()
     ranking_metric = st.selectbox(
         "Rank players by",
-        ["PXT / 90", "Net / 90", "Receiving PXT", "PXT Attack", "Net Threat", "Shot", "Pass", "Dribble"],
+        [
+            "PXT / 90",
+            "Net / 90",
+            "Receiving PXT / 90",
+            "Shot / 90",
+            "Pass / 90",
+            "Dribble / 90",
+            "PXT Attack",
+            "Net Threat",
+            "Receiving PXT",
+            "Shot",
+            "Pass",
+            "Dribble",
+        ],
         index=0,
     )
     minimum_minutes = st.slider("Minimum minutes", 0, 2500, 450, 90)
 
-    ranked_rows = [row for row in rows if float(row["Minutes"]) >= minimum_minutes]
+    ranked_rows = [
+        row
+        for row in _add_position_percentiles(freiburg_rows, all_player_rows, minimum_minutes)
+        if float(row["Minutes"]) >= minimum_minutes
+    ]
     ranked_rows.sort(key=lambda item: (-float(item[ranking_metric]), item["Player"]))
     for rank, row in enumerate(ranked_rows, start=1):
         row["Rank"] = rank
 
-    top_chart_rows = [
-        {"Player": row["Player"], ranking_metric: row[ranking_metric]}
-        for row in ranked_rows[:12]
-    ]
+    top_chart_rows = [{"Player": row["Player"], ranking_metric: row[ranking_metric]} for row in ranked_rows[:12]]
     if top_chart_rows:
         st.bar_chart(top_chart_rows, x="Player", y=ranking_metric)
 
     display_columns = [
         "Rank",
         "Player",
+        "Position Group",
         "Position",
         "Matches",
         "Minutes",
         "PXT Attack",
         "Net Threat",
         "PXT / 90",
+        "PXT / 90 Percentile",
         "Net / 90",
+        "Net / 90 Percentile",
+        "Receiving PXT / 90",
+        "Shot / 90",
+        "Pass / 90",
+        "Dribble / 90",
         "Pass",
         "Dribble",
         "Shot",
@@ -214,9 +378,33 @@ def render_threat_page(
         width="stretch",
     )
 
+    with st.expander("League team PXT context", expanded=False):
+        team_display_columns = [
+            "PXT Rank",
+            "Team",
+            "Matches",
+            "PXT Attack",
+            "PXT / Match",
+            "Team PXT Percentile",
+            "Net Threat",
+            "Net / Match",
+            "Shot",
+            "Pass",
+            "Dribble",
+            "Set Piece",
+        ]
+        st.dataframe(
+            [{column: row.get(column, "") for column in team_display_columns} for row in team_rows],
+            hide_index=True,
+            width="stretch",
+        )
+
     with st.expander("Metric notes", expanded=False):
         st.markdown(
             "`PXT Attack` is Impect's own attacking-phase goal-threat change KPI. "
             "`Net Threat` subtracts opponent goal-threat change while Freiburg are attacking. "
+            "`Team Percentile` compares Freiburg's team PXT per match against the other Bundesliga teams. "
+            "`PXT / 90 Percentile` compares each Freiburg player to all league players in the same position group "
+            "who meet the selected minimum-minutes filter. "
             "`Receiving PXT` is shown separately because adding it to pass/set-piece PXT can double-count credit."
         )
