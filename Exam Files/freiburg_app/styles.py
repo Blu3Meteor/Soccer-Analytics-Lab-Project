@@ -455,12 +455,13 @@ div.stButton > button[kind="primary"] {
 .league-table-wrap {
     border: 1px solid var(--soft-border);
     border-radius: 8px;
-    overflow: hidden;
+    overflow-x: auto;
     background: #ffffff;
 }
 
 .league-table {
     width: 100%;
+    min-width: 1040px;
     border-collapse: collapse;
 }
 
@@ -512,6 +513,42 @@ div.stButton > button[kind="primary"] {
 
 .league-table-points {
     font-weight: 950;
+}
+
+.league-table-model {
+    color: #344054;
+    font-variant-numeric: tabular-nums;
+}
+
+.model-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) repeat(2, minmax(0, 0.8fr));
+    gap: 0.65rem;
+    margin: 0 0 1rem;
+}
+
+.model-summary > div {
+    border: 1px solid var(--soft-border);
+    border-radius: 8px;
+    padding: 0.68rem 0.78rem;
+    background: #ffffff;
+}
+
+.model-summary span {
+    display: block;
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.model-summary strong {
+    display: block;
+    color: var(--ink);
+    font-size: 0.9rem;
+    font-weight: 900;
+    margin-top: 0.12rem;
+    overflow-wrap: anywhere;
 }
 
 .lineup-pitch {
@@ -648,6 +685,10 @@ div.stButton > button[kind="primary"] {
 
     .lineup-pitch {
         min-height: 460px;
+    }
+
+    .model-summary {
+        grid-template-columns: 1fr;
     }
 }
 </style>

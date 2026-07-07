@@ -66,6 +66,7 @@ pip install -r "Exam Files/requirements.txt"
 - Lineups, benches, and substitutions for both teams.
 - Match stats: shots, shots on target, possession, passes, pass accuracy, fouls, yellow cards, red cards, offsides, and corners.
 - Goal, card, and shot event tables.
+- League table with Poisson regression model columns for expected rank, expected points, expected goal difference, attack coefficient, and concede coefficient.
 
 ## Stat Sources
 
@@ -75,6 +76,22 @@ pip install -r "Exam Files/requirements.txt"
 - Fouls, offsides, corners, and possession are calculated from the event feed.
 
 Possession is estimated from attacking event share because the dataset does not include a direct possession percentage field.
+
+## Regression Model
+
+The League Table page includes a Poisson regression model following the Soccermatics lesson:
+
+```text
+https://soccermatics.readthedocs.io/en/latest/gallery/lesson5/plot_SimulateMatches.html
+```
+
+The model fits:
+
+```text
+goals ~ home + team + opponent
+```
+
+It uses the coefficients to estimate each fixture's scoring rates, outcome probabilities, expected points, and expected goal difference.
 
 ## Notes and Caveats
 - No yellow card data is present in the events_kpis folder.
