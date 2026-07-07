@@ -12,6 +12,7 @@ from .components import (
 )
 from .data import (
     load_match_events,
+    load_match_events_kpis,
     load_match_lineups,
     load_match_player_kpis,
     short_team_name,
@@ -19,7 +20,7 @@ from .data import (
 )
 from .events import card_events, scoring_events, shot_events
 from .lineups import lineup_for_team, render_lineup_panel
-from .metrics import compute_stats, opposition_team, points_progression, season_record, stat_rows
+from .metrics import compute_stats, opposition_team, points_progression, season_record, shot_xg_by_event, stat_rows
 
 
 def render_home_page(
@@ -47,6 +48,7 @@ def render_home_page(
 
     selected_match = summaries[selected_index]
     events = load_match_events(int(selected_match["id"]))
+    events_kpis = load_match_events_kpis(int(selected_match["id"]))
     lineups = load_match_lineups(int(selected_match["id"]))
     player_kpis = load_match_player_kpis(int(selected_match["id"]))
 
@@ -57,13 +59,19 @@ def render_home_page(
     home_short = short_team_name(home_name)
     away_short = short_team_name(away_name)
     result_code = selected_match["freiburgResult"]
-    stats = compute_stats(selected_match, events, player_kpis)
+    xg_by_event = shot_xg_by_event(events_kpis)
+    stats = compute_stats(selected_match, events, player_kpis, events_kpis)
     rows = stat_rows(stats, home_id, away_id, home_name, away_name)
     goals = scoring_events(events, selected_match, players_by_id, squads_by_id)
 
     st.divider()
     with st.container(border=True):
         render_scoreboard(selected_match, home_id, away_id, home_name, away_name, result_code, squads_by_id)
+        st.markdown(
+            f'<a class="detail-link" href="./?page=match_details&match_id={int(selected_match["id"])}" target="_self">'
+            'Open Advanced Match Details</a>',
+            unsafe_allow_html=True,
+        )
 
         overview_tab, lineup_tab, stats_tab, events_tab = st.tabs(["Overview", "Lineups", "Stats", "Events"])
 
@@ -109,4 +117,4 @@ def render_home_page(
                     st.caption("No card events recorded.")
 
             with st.expander("Shots", expanded=False):
-                st.dataframe(shot_events(events, players_by_id, squads_by_id), hide_index=True, width="stretch")
+                st.dataframe(shot_events(events, players_by_id, squads_by_id, xg_by_event), hide_index=True, width="stretch")

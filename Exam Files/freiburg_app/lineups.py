@@ -164,21 +164,46 @@ def substitution_rows(lineup: dict[str, Any], players: dict[int, dict[str, Any]]
         from_position = sub.get("fromPosition")
         to_position = sub.get("toPosition")
         if from_position == "BANK":
-            movement = "On"
+            movement = "↑ In"
+            movement_class = "sub-in"
         elif to_position == "BANK":
-            movement = "Off"
+            movement = "↓ Out"
+            movement_class = "sub-out"
         else:
-            movement = "Moved"
+            movement = "↔ Moved"
+            movement_class = "sub-moved"
         rows.append(
             {
                 "Time": minute_label(sub.get("gameTime")),
                 "Player": player_name(int(sub["playerId"]), players),
                 "Move": movement,
+                "_class": movement_class,
                 "From": format_position(from_position),
                 "To": format_position(to_position),
             }
         )
     return rows
+
+
+def render_substitution_table(rows: list[dict[str, Any]]) -> str:
+    body = []
+    for row in rows:
+        movement_class = row.get("_class", "sub-moved")
+        body.append(
+            "<tr>"
+            f"<td>{escape(str(row.get('Time', '')))}</td>"
+            f"<td>{escape(str(row.get('Player', '')))}</td>"
+            f'<td><span class="sub-move {movement_class}">{escape(str(row.get("Move", "")))}</span></td>'
+            f"<td>{escape(str(row.get('From', '')))}</td>"
+            f"<td>{escape(str(row.get('To', '')))}</td>"
+            "</tr>"
+        )
+    return (
+        '<table class="sub-table">'
+        "<thead><tr><th>Time</th><th>Player</th><th>Move</th><th>From</th><th>To</th></tr></thead>"
+        f"<tbody>{''.join(body)}</tbody>"
+        "</table>"
+    )
 
 
 def render_lineup_panel(
@@ -197,6 +222,6 @@ def render_lineup_panel(
     with st.expander("Substitutions", expanded=False):
         rows = substitution_rows(lineup, players)
         if rows:
-            st.dataframe(rows, hide_index=True, width="stretch")
+            st.markdown(render_substitution_table(rows), unsafe_allow_html=True)
         else:
             st.caption("No substitutions listed.")

@@ -32,6 +32,8 @@ def selected_match_id_from_query() -> int | None:
 
 def selected_page_from_query() -> str:
     raw_value = query_param_value("page")
+    if raw_value in {"match_details", "details", "match_events", "events"}:
+        return "Match Details"
     if raw_value in {"league", "league_table", "table"}:
         return "League Table"
     if raw_value in {"threat", "attacking_threat", "pxt"}:
@@ -55,9 +57,11 @@ def render_scoreboard_logo(team_id: int, name: str, squads: dict[int, dict[str, 
 
 def render_sidebar_menu(current_page: str, selected_match_id: int) -> str:
     home_active = " sidebar-link-active" if current_page == "Home Page" else ""
+    details_active = " sidebar-link-active" if current_page == "Match Details" else ""
     table_active = " sidebar-link-active" if current_page == "League Table" else ""
     threat_active = " sidebar-link-active" if current_page == "Attacking Threat" else ""
     home_href = f"./?page=home&match_id={int(selected_match_id)}"
+    details_href = f"./?page=match_details&match_id={int(selected_match_id)}"
 
     st.sidebar.markdown(
         '<div class="sidebar-shell">'
@@ -71,15 +75,19 @@ def render_sidebar_menu(current_page: str, selected_match_id: int) -> str:
         '<div class="sidebar-nav">'
         f'<a class="sidebar-link{home_active}" href="{home_href}" target="_self">'
         '<span class="sidebar-link-title">Home Page</span>'
-        '<span class="sidebar-link-meta">Matches, lineups, stats</span>'
+        '<span class="sidebar-link-meta">Matches, Lineups, Stats</span>'
+        '</a>'
+        f'<a class="sidebar-link{details_active}" href="{details_href}" target="_self">'
+        '<span class="sidebar-link-title">Match Details</span>'
+        '<span class="sidebar-link-meta">Networks, xT, Events</span>'
         '</a>'
         f'<a class="sidebar-link{table_active}" href="./?page=league_table" target="_self">'
         '<span class="sidebar-link-title">League Table</span>'
-        '<span class="sidebar-link-meta">Bundesliga standings</span>'
+        '<span class="sidebar-link-meta">Bundesliga Standings</span>'
         '</a>'
         f'<a class="sidebar-link{threat_active}" href="./?page=threat" target="_self">'
         '<span class="sidebar-link-title">Attacking Threat</span>'
-        '<span class="sidebar-link-meta">Season player pxT ranks</span>'
+        '<span class="sidebar-link-meta">Season Player pxT Ranks</span>'
         '</a>'
         '</div>'
         '<div class="sidebar-footnote">Data: ImpectAPI/open-data</div>'

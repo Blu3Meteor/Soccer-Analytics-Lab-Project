@@ -7,6 +7,7 @@ from .config import DATA_ROOT
 from .data import load_reference_data
 from .home import render_home_page
 from .league import render_league_table_page
+from .match_details import render_match_details_page
 from .matches import load_freiburg_match_summaries
 from .styles import apply_styles
 from .threat import render_threat_page
@@ -45,6 +46,10 @@ def main() -> None:
 
     if page == "Attacking Threat":
         render_threat_page(summaries, freiburg_id, players_by_id)
+        st.stop()
+
+    if page == "Match Details":
+        render_match_details_page(summaries[selected_index], freiburg_id, squads_by_id, players_by_id)
         st.stop()
 
     render_home_page(summaries, selected_index, freiburg_id, squads_by_id, players_by_id)

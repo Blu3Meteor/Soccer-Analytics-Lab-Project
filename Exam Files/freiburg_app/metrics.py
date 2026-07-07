@@ -7,6 +7,7 @@ from .config import (
     KPI_NEUTRAL_PASSES,
     KPI_RED_CARD,
     KPI_SECOND_YELLOW_CARD,
+    KPI_SHOT_XG,
     KPI_SHOTS,
     KPI_SHOTS_ON_TARGET,
     KPI_SUCCESSFUL_PASSES,
@@ -77,16 +78,31 @@ def compute_possession(events: list[dict[str, Any]], team_ids: tuple[int, int]) 
     return {team_ids[0]: first, team_ids[1]: max(0, 100 - first)}
 
 
+def event_kpi_values(events_kpis: list[dict[str, Any]], kpi_id: int) -> dict[int, float]:
+    values: dict[int, float] = defaultdict(float)
+    for item in events_kpis:
+        if int(item.get("kpiId", -1)) != int(kpi_id):
+            continue
+        values[int(item["eventId"])] += float(item.get("value") or 0.0)
+    return values
+
+
+def shot_xg_by_event(events_kpis: list[dict[str, Any]]) -> dict[int, float]:
+    return event_kpi_values(events_kpis, KPI_SHOT_XG)
+
+
 def compute_stats(
     match: dict[str, Any],
     events: list[dict[str, Any]],
     player_kpis: dict[str, Any],
+    events_kpis: list[dict[str, Any]] | None = None,
 ) -> dict[int, dict[str, Any]]:
     home_id = int(match["homeSquadId"])
     away_id = int(match["awaySquadId"])
     team_ids = (home_id, away_id)
     stats: dict[int, dict[str, Any]] = {team_id: defaultdict(float) for team_id in team_ids}
     possession = compute_possession(events, team_ids)
+    xg_by_event = shot_xg_by_event(events_kpis or [])
 
     for team_id in team_ids:
         kpis = aggregate_kpis_for_team(player_kpis, team_id)
@@ -103,11 +119,15 @@ def compute_stats(
         stats[team_id]["second_yellow_cards"] = int(round(kpis[KPI_SECOND_YELLOW_CARD]))
         stats[team_id]["red_cards"] = int(round(kpis[KPI_RED_CARD])) + second_yellow_cards
         stats[team_id]["possession"] = possession[team_id]
+        stats[team_id]["xg"] = 0.0
 
     for event in events:
         squad_id = event.get("squadId")
         if squad_id not in team_ids:
             continue
+        event_id = event.get("id")
+        if event_id is not None:
+            stats[int(squad_id)]["xg"] += xg_by_event.get(int(event_id), 0.0)
         action_type = event.get("actionType")
         if action_type == "FOUL":
             stats[int(squad_id)]["fouls"] += 1
@@ -144,6 +164,8 @@ def points_progression(summaries: list[dict[str, Any]]) -> list[dict[str, int]]:
 
 
 def format_stat_value(value: float, kind: str) -> str:
+    if kind == "decimal":
+        return f"{float(value):.2f}"
     if kind == "percent":
         return f"{int(round(value))}%"
     if kind == "percent_decimal":
@@ -160,6 +182,7 @@ def stat_rows(
 ) -> list[dict[str, Any]]:
     specs = [
         ("Shots", "shots", "number"),
+        ("xG", "xg", "decimal"),
         ("Shots on Target", "shots_on_target", "number"),
         ("Possession", "possession", "percent"),
         ("Passes", "passes", "number"),

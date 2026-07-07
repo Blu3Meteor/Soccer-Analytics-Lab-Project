@@ -427,6 +427,62 @@ div.stButton > button[kind="primary"] {
     color: #b42318;
 }
 
+.detail-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 50px;
+    margin: 0.9rem 0 0.35rem;
+    padding: 0.65rem 0.9rem;
+    border: 1px solid var(--freiburg-red);
+    border-radius: 8px;
+    background: #fff3f5;
+    color: var(--freiburg-red) !important;
+    font-size: 0.92rem;
+    font-weight: 900;
+    text-decoration: none !important;
+}
+
+.detail-link:hover {
+    background: var(--freiburg-red);
+    color: #ffffff !important;
+}
+
+[data-testid="stSegmentedControl"] {
+    width: 100%;
+    margin: 0.95rem 0 1rem;
+}
+
+[data-testid="stSegmentedControl"] > div {
+    width: 100%;
+}
+
+[data-testid="stSegmentedControl"] [role="radiogroup"] {
+    display: flex;
+    width: 100%;
+    gap: 0;
+    overflow: hidden;
+    border: 1px solid var(--soft-border);
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+[data-testid="stSegmentedControl"] [role="radiogroup"] button,
+[data-testid="stSegmentedControl"] [role="radiogroup"] label {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: 42px;
+    border-radius: 0;
+    text-align: center;
+}
+
+[data-testid="stSegmentedControl"] [role="radiogroup"] button p,
+[data-testid="stSegmentedControl"] [role="radiogroup"] label p {
+    width: 100%;
+    text-align: center;
+}
+
 .stat-row {
     display: grid;
     grid-template-columns: minmax(72px, 0.35fr) minmax(110px, 0.3fr) minmax(72px, 0.35fr);
@@ -566,6 +622,22 @@ div.stButton > button[kind="primary"] {
     overflow-wrap: anywhere;
 }
 
+.advanced-pitch {
+    width: 100%;
+    max-width: 980px;
+    margin: 0.75rem auto 1rem;
+    border: 1px solid var(--soft-border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #1f6f45;
+}
+
+.advanced-pitch svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
 .lineup-pitch {
     position: relative;
     width: 100%;
@@ -667,6 +739,59 @@ div.stButton > button[kind="primary"] {
     font-size: 0.78rem;
     margin: -0.25rem 0 0.6rem;
     text-align: center;
+}
+
+.sub-table {
+    width: 100%;
+    border-collapse: collapse;
+    overflow: hidden;
+    border: 1px solid #edf0f3;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.sub-table th {
+    background: #f5f7f9;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 850;
+    padding: 0.55rem 0.6rem;
+    text-align: left;
+    text-transform: uppercase;
+}
+
+.sub-table td {
+    border-top: 1px solid #edf0f3;
+    color: var(--ink);
+    font-size: 0.84rem;
+    font-weight: 700;
+    padding: 0.55rem 0.6rem;
+}
+
+.sub-move {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 52px;
+    border-radius: 999px;
+    padding: 0.18rem 0.44rem;
+    font-size: 0.78rem;
+    font-weight: 900;
+}
+
+.sub-in {
+    background: #e7f6ee;
+    color: #087443;
+}
+
+.sub-out {
+    background: #ffe8e8;
+    color: #b42318;
+}
+
+.sub-moved {
+    background: #edf0f3;
+    color: #344054;
 }
 
 @media (max-width: 700px) {

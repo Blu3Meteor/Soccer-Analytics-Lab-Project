@@ -63,6 +63,7 @@ pip install -r "Exam Files/requirements.txt"
 - A top slider for all 34 SC Freiburg league matches.
 - Clickable result boxes for each match.
 - Match overview with score, date, opponent, and Freiburg result.
+- Match Details page for one match with segmented passing networks, centralisation, Freiburg xT maps, player xT rankings, lineups, and raw event tables.
 - Lineups, benches, and substitutions for both teams.
 - Match stats: shots, shots on target, possession, passes, pass accuracy, fouls, yellow cards, red cards, offsides, and corners.
 - Goal, card, and shot event tables.
@@ -92,6 +93,17 @@ goals ~ home + team + opponent
 ```
 
 It uses the coefficients to estimate each fixture's scoring rates, outcome probabilities, expected points, and expected goal difference.
+
+## Match Details Models
+
+The Match Details page follows these Soccermatics visual ideas:
+
+```text
+https://soccermatics.readthedocs.io/en/latest/gallery/lesson1/plot_PassNetworks.html
+https://soccermatics.readthedocs.io/en/latest/gallery/lesson4/plot_ActionBasedExpectedThreat.html
+```
+
+Passing networks use successful Freiburg teammate passes, split by substitution windows. The xT map uses Impect event-level PXT action KPI values from `events_kpis`.
 
 ## Notes and Caveats
 - No yellow card data is present in the events_kpis folder.

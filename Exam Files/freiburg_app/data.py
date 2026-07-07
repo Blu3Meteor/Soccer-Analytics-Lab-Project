@@ -42,6 +42,11 @@ def load_match_player_kpis(match_id: int) -> dict[str, Any]:
     return load_json(f"player_kpis/player_kpis_{match_id}.json")
 
 
+@st.cache_data(show_spinner=False)
+def load_match_events_kpis(match_id: int) -> list[dict[str, Any]]:
+    return load_json(f"events_kpis/events_kpis_{match_id}.json")
+
+
 def team_name(team_id: int, squads: dict[int, dict[str, Any]]) -> str:
     return squads.get(int(team_id), {}).get("name", f"Team {team_id}")
 
