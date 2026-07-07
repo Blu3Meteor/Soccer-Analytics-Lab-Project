@@ -84,6 +84,13 @@ CSS = """
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
+.sidebar-link:visited,
+.sidebar-link:hover,
+.sidebar-link:active {
+    color: var(--ink) !important;
+    text-decoration: none !important;
+}
+
 .sidebar-link:hover {
     border-color: var(--freiburg-red);
     background: #fff7f8;
@@ -254,6 +261,14 @@ div.stButton > button[kind="primary"] {
     background: #ffffff;
     color: var(--ink);
     text-decoration: none;
+}
+
+.match-card,
+.match-card:visited,
+.match-card:hover,
+.match-card:active,
+.match-card * {
+    text-decoration: none !important;
 }
 
 .match-card:hover {
