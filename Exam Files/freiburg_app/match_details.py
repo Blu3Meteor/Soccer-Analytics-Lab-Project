@@ -427,6 +427,32 @@ def _player_xt_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return output
 
 
+def _best_xt_player_by_team(rows: list[dict[str, Any]]) -> dict[int, str]:
+    summary: dict[tuple[int, int], dict[str, Any]] = {}
+    for row in rows:
+        team_id = row.get("team_id")
+        if team_id is None:
+            continue
+        player_id = int(row["player_id"])
+        player = summary.setdefault(
+            (int(team_id), player_id),
+            {"team_id": int(team_id), "Player": row["Player"], "Total xT": 0.0},
+        )
+        player["Total xT"] += float(row["xT"])
+
+    best_by_team: dict[int, dict[str, Any]] = {}
+    for player in summary.values():
+        team_id = int(player["team_id"])
+        current = best_by_team.get(team_id)
+        if current is None or float(player["Total xT"]) > float(current["Total xT"]):
+            best_by_team[team_id] = player
+
+    return {
+        team_id: f'{player["Player"]} ({float(player["Total xT"]):.3f})'
+        for team_id, player in best_by_team.items()
+    }
+
+
 def _shot_goal_options(
     events: list[dict[str, Any]],
     events_kpis: list[dict[str, Any]],
@@ -565,6 +591,7 @@ def _render_build_up_map(rows: list[dict[str, Any]], players: dict[int, dict[str
 
     max_value = max((abs(float(row["xT"])) for row in rows), default=0.01) or 0.01
     arrows = []
+    xt_labels = []
     step_markers = []
     player_locations: dict[int, dict[str, Any]] = {}
     for index, row in enumerate(rows, start=1):
@@ -587,6 +614,10 @@ def _render_build_up_map(rows: list[dict[str, Any]], players: dict[int, dict[str
         start_y = float(row["start_y"])
         end_x = float(row["end_x"])
         end_y = float(row["end_y"])
+        label = f"xT {value:+.3f}"
+        label_width = max(9.0, len(label) * 1.05)
+        label_x = _clip(((start_x + end_x) / 2) - (label_width / 2), 1.0, PITCH_LENGTH - label_width - 1.0)
+        label_y = _clip(((start_y + end_y) / 2) - 4.2, 1.0, PITCH_WIDTH - 4.4)
         if abs(start_x - end_x) < 0.1 and abs(start_y - end_y) < 0.1:
             arrows.append(
                 f'<circle cx="{start_x:.2f}" cy="{start_y:.2f}" r="{width + 0.8:.2f}" '
@@ -598,6 +629,13 @@ def _render_build_up_map(rows: list[dict[str, Any]], players: dict[int, dict[str
                 f'x2="{end_x:.2f}" y2="{end_y:.2f}" stroke="{color}" '
                 f'stroke-width="{width:.2f}" opacity="{opacity:.2f}" marker-end="url(#{marker})"/>'
             )
+        xt_labels.append(
+            f'<rect x="{label_x:.2f}" y="{label_y:.2f}" width="{label_width:.2f}" height="3.6" '
+            'rx="0.7" fill="rgba(21,23,26,0.76)" stroke="rgba(255,255,255,0.42)" stroke-width="0.18"/>'
+            f'<text x="{label_x + label_width / 2:.2f}" y="{label_y + 2.55:.2f}" text-anchor="middle" '
+            'fill="#ffffff" font-size="1.75" font-weight="850">'
+            f'{escape(label)}</text>'
+        )
         step_markers.append(
             f'<circle cx="{start_x:.2f}" cy="{start_y:.2f}" r="1.25" fill="#111827" opacity="0.78"/>'
             f'<text x="{start_x:.2f}" y="{start_y + 0.72:.2f}" text-anchor="middle" '
@@ -639,7 +677,7 @@ def _render_build_up_map(rows: list[dict[str, Any]], players: dict[int, dict[str
         '<line x1="4" y1="11.4" x2="10" y2="11.4" stroke="#27313f" stroke-width="1" marker-end="url(#arrow-dark)"/>'
         '<text x="12" y="12.2" fill="#ffffff" font-size="2.1">neutral or negative</text>'
     )
-    return _svg_wrapper("".join(arrows + circles + step_markers) + legend)
+    return _svg_wrapper("".join(arrows + xt_labels + circles + step_markers) + legend)
 
 
 def _event_table_rows(events: list[dict[str, Any]], players: dict[int, dict[str, Any]], squads: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:
@@ -775,8 +813,17 @@ def render_match_details_page(
         metric_cols[3].metric("Opponent", short_team_name(team_name(opponent_id, squads_by_id)))
 
         st.markdown("**Match Stats**")
+        overview_stat_rows = stat_rows(stats, home_id, away_id, home_name, away_name)
+        best_xt_players = _best_xt_player_by_team(match_xt_rows)
+        overview_stat_rows.append(
+            {
+                "Stat": "xT (Best Player)",
+                short_team_name(home_name): best_xt_players.get(home_id, "-"),
+                short_team_name(away_name): best_xt_players.get(away_id, "-"),
+            }
+        )
         st.dataframe(
-            stat_rows(stats, home_id, away_id, home_name, away_name),
+            overview_stat_rows,
             hide_index=True,
             width="stretch",
         )
