@@ -106,10 +106,14 @@ https://soccermatics.readthedocs.io/en/latest/gallery/lesson4/plot_ActionBasedEx
 Passing networks use successful Freiburg teammate passes, split by substitution windows. The xT map uses Impect event-level PXT action KPI values from `events_kpis`.
 
 ## Notes and Caveats
+
 - No yellow card data is present in the events_kpis folder.
+- No positional / tracking data makes it impossible to evaluate general play (e.g. decoy runs, etc), so the findings are solely based on events.
 
 ## TBDs
+
 - Attacking and Defensive Coefficients (improvements)
 - Passing networks per substitution per game for Freiburg and other team
+- xG plots per shot per game
 - xT (best player)
 - Per position radar plot, find consistent coverage / blindspots
