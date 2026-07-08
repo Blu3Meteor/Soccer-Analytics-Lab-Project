@@ -49,7 +49,7 @@ def main() -> None:
         st.stop()
 
     if page == "Match Details":
-        render_match_details_page(summaries[selected_index], freiburg_id, squads_by_id, players_by_id)
+        render_match_details_page(summaries, selected_index, freiburg_id, squads_by_id, players_by_id)
         st.stop()
 
     render_home_page(summaries, selected_index, freiburg_id, squads_by_id, players_by_id)

@@ -689,12 +689,47 @@ def _detail_section_selector(match_id: int, sections: list[str]) -> str:
     return selected or st.session_state[key]
 
 
+def _match_option_label(match: dict[str, Any]) -> str:
+    return (
+        f"{compact_matchday(match)} · "
+        f"{short_team_name(match['homeName'])} {match['homeScore']}-{match['awayScore']} "
+        f"{short_team_name(match['awayName'])}"
+    )
+
+
+def _selected_match_from_details_selector(
+    summaries: list[dict[str, Any]],
+    selected_index: int,
+) -> dict[str, Any]:
+    match_ids = [int(match["id"]) for match in summaries]
+    selected_index = min(max(selected_index, 0), len(summaries) - 1)
+    selected_id = int(summaries[selected_index]["id"])
+    chosen_id = st.selectbox(
+        "Select match",
+        match_ids,
+        index=match_ids.index(selected_id),
+        format_func=lambda match_id: _match_option_label(next(match for match in summaries if int(match["id"]) == int(match_id))),
+    )
+    chosen_index = match_ids.index(int(chosen_id))
+    if chosen_index != selected_index:
+        st.session_state.selected_match_index = chosen_index
+        if hasattr(st, "query_params"):
+            st.query_params["page"] = "match_details"
+            st.query_params["match_id"] = str(chosen_id)
+        else:
+            st.experimental_set_query_params(page="match_details", match_id=str(chosen_id))
+        st.rerun()
+    return summaries[chosen_index]
+
+
 def render_match_details_page(
-    selected_match: dict[str, Any],
+    summaries: list[dict[str, Any]],
+    selected_index: int,
     freiburg_id: int,
     squads_by_id: dict[int, dict[str, Any]],
     players_by_id: dict[int, dict[str, Any]],
 ) -> None:
+    selected_match = _selected_match_from_details_selector(summaries, selected_index)
     match_id = int(selected_match["id"])
     events = load_match_events(match_id)
     events_kpis = load_match_events_kpis(match_id)
