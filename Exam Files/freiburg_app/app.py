@@ -9,6 +9,7 @@ from .home import render_home_page
 from .league import render_league_table_page
 from .match_details import render_match_details_page
 from .matches import load_freiburg_match_summaries
+from .player_rankings import render_player_rankings_page
 from .styles import apply_styles
 from .threat import render_threat_page
 
@@ -46,6 +47,10 @@ def main() -> None:
 
     if page == "Attacking Threat":
         render_threat_page(summaries, freiburg_id, players_by_id, squads_by_id, matches)
+        st.stop()
+
+    if page == "Player Rankings":
+        render_player_rankings_page(freiburg_id, squads_by_id, players_by_id, matches)
         st.stop()
 
     if page == "Match Details":

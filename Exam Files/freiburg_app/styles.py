@@ -794,6 +794,50 @@ div.stButton > button[kind="primary"] {
     color: #344054;
 }
 
+.radar-wrap {
+    display: grid;
+    grid-template-columns: minmax(280px, 0.7fr) minmax(240px, 0.3fr);
+    gap: 1rem;
+    align-items: center;
+}
+
+.radar-wrap svg {
+    width: 100%;
+    max-height: 520px;
+}
+
+.radar-values {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.radar-values th {
+    background: #f5f7f9;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 850;
+    padding: 0.48rem 0.55rem;
+    text-align: right;
+    text-transform: uppercase;
+}
+
+.radar-values th:first-child {
+    text-align: left;
+}
+
+.radar-values td {
+    border-top: 1px solid #edf0f3;
+    color: var(--ink);
+    font-size: 0.84rem;
+    font-weight: 700;
+    padding: 0.48rem 0.55rem;
+    text-align: right;
+}
+
+.radar-values td:first-child {
+    text-align: left;
+}
+
 @media (max-width: 700px) {
     .scoreboard {
         grid-template-columns: 1fr;
@@ -828,6 +872,10 @@ div.stButton > button[kind="primary"] {
     }
 
     .model-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .radar-wrap {
         grid-template-columns: 1fr;
     }
 }

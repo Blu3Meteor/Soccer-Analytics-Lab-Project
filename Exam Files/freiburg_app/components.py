@@ -34,6 +34,8 @@ def selected_page_from_query() -> str:
     raw_value = query_param_value("page")
     if raw_value in {"match_details", "details", "match_events", "events"}:
         return "Match Details"
+    if raw_value in {"player_rankings", "rankings", "radars"}:
+        return "Player Rankings"
     if raw_value in {"league", "league_table", "table"}:
         return "League Table"
     if raw_value in {"threat", "attacking_threat", "pxt"}:
@@ -58,6 +60,7 @@ def render_scoreboard_logo(team_id: int, name: str, squads: dict[int, dict[str, 
 def render_sidebar_menu(current_page: str, selected_match_id: int) -> str:
     home_active = " sidebar-link-active" if current_page == "Home Page" else ""
     details_active = " sidebar-link-active" if current_page == "Match Details" else ""
+    rankings_active = " sidebar-link-active" if current_page == "Player Rankings" else ""
     table_active = " sidebar-link-active" if current_page == "League Table" else ""
     threat_active = " sidebar-link-active" if current_page == "Attacking Threat" else ""
     home_href = f"./?page=home&match_id={int(selected_match_id)}"
@@ -80,6 +83,10 @@ def render_sidebar_menu(current_page: str, selected_match_id: int) -> str:
         f'<a class="sidebar-link{details_active}" href="{details_href}" target="_self">'
         '<span class="sidebar-link-title">Match Details</span>'
         '<span class="sidebar-link-meta">Networks, xT, Events</span>'
+        '</a>'
+        f'<a class="sidebar-link{rankings_active}" href="./?page=player_rankings" target="_self">'
+        '<span class="sidebar-link-title">Player Rankings</span>'
+        '<span class="sidebar-link-meta">Position radars</span>'
         '</a>'
         f'<a class="sidebar-link{table_active}" href="./?page=league_table" target="_self">'
         '<span class="sidebar-link-title">League Table</span>'
