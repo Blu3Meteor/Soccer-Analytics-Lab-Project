@@ -53,6 +53,8 @@ OPP_THREAT_KPIS = {
     "Opp Ball Loss": KPI_OPP_PXT_BALL_LOSS,
 }
 
+PERCENTILE_SCALE_VERSION = 3
+
 
 def _player_kpi_map(player: dict[str, Any]) -> dict[int, float]:
     totals: dict[int, float] = defaultdict(float)
@@ -150,12 +152,23 @@ def _finalize_player_row(row: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
-def _percentile(value: float, values: list[float]) -> float:
+def _value_score(value: float, values: list[float]) -> float:
     if not values:
         return 0.0
+    minimum = min(values)
+    maximum = max(values)
+    if maximum == minimum:
+        return 100.0
+    return round(((value - minimum) / (maximum - minimum)) * 100, 0)
+
+
+def _percentile_rank(value: float, values: list[float]) -> float:
+    if not values:
+        return 0.0
+    if len(values) == 1:
+        return 100.0
     below = sum(1 for item in values if item < value)
-    equal = sum(1 for item in values if item == value)
-    return round(((below + (0.5 * equal)) / len(values)) * 100, 0)
+    return round((below / (len(values) - 1)) * 100, 0)
 
 
 def _semantic_band(percentile: float) -> str:
@@ -211,7 +224,9 @@ def season_player_threat_rows(
 def season_team_threat_rows(
     match_ids: tuple[int, ...],
     squads_by_id: dict[int, dict[str, Any]],
+    percentile_scale_version: int = PERCENTILE_SCALE_VERSION,
 ) -> list[dict[str, Any]]:
+    _ = percentile_scale_version
     team_totals: dict[int, dict[str, Any]] = {}
 
     for match_id in match_ids:
@@ -278,7 +293,8 @@ def season_team_threat_rows(
         ranked = sorted(rows, key=lambda item: (-float(item[metric]), item["Team"]))
         for rank, row in enumerate(ranked, start=1):
             row[f"{label} Rank"] = rank
-            row[f"{label} Percentile"] = _percentile(float(row[metric]), values)
+            row[f"{label} Percentile Rank"] = _percentile_rank(float(row[metric]), values)
+            row[f"{label} Value Score"] = _value_score(float(row[metric]), values)
     return rows
 
 
@@ -308,9 +324,11 @@ def _add_position_percentiles(
     for row in freiburg_rows:
         copy = dict(row)
         group = copy["Position Group"]
-        copy["PXT / 90 Percentile"] = _percentile(float(copy["PXT / 90"]), pxt_groups[group])
-        copy["Net / 90 Percentile"] = _percentile(float(copy["Net / 90"]), net_groups[group])
-        copy["PXT / 90 Meaning"] = _semantic_band(float(copy["PXT / 90 Percentile"]))
+        copy["PXT / 90 Percentile Rank"] = _percentile_rank(float(copy["PXT / 90"]), pxt_groups[group])
+        copy["PXT / 90 Value Score"] = _value_score(float(copy["PXT / 90"]), pxt_groups[group])
+        copy["Net / 90 Percentile Rank"] = _percentile_rank(float(copy["Net / 90"]), net_groups[group])
+        copy["Net / 90 Value Score"] = _value_score(float(copy["Net / 90"]), net_groups[group])
+        copy["PXT / 90 Meaning"] = _semantic_band(float(copy["PXT / 90 Percentile Rank"]))
         enriched.append(copy)
     return enriched
 
@@ -320,8 +338,9 @@ def _render_metric_guide() -> None:
     st.markdown(
         "PXT estimates how much an action changes the chance that the team will eventually score. "
         "Positive own-team PXT is good because the action moved the team into a more threatening state. "
-        "Negative own-team PXT is bad because the action reduced attacking threat. Per-90 and percentile views "
-        "are usually more meaningful than raw totals because players have different minutes and positions."
+        "Negative own-team PXT is bad because the action reduced attacking threat. Per-90 values are usually more "
+        "meaningful than raw totals because players have different minutes and positions. Percentile Rank shows "
+        "peer standing; Value Score shows distance between the lowest and highest actual PXT values."
     )
     st.dataframe(
         [
@@ -372,14 +391,16 @@ def _freiburg_category_context(freiburg_team: dict[str, Any], team_count: int) -
     ]
     rows = []
     for label, metric, rank_prefix in specs:
-        percentile = float(freiburg_team[f"{rank_prefix} Percentile"])
+        percentile_rank = float(freiburg_team[f"{rank_prefix} Percentile Rank"])
+        value_score = float(freiburg_team[f"{rank_prefix} Value Score"])
         rows.append(
             {
                 "Metric": label,
                 "Freiburg / Match": round(float(freiburg_team[metric]), 3),
                 "League Rank": _rank_label(int(freiburg_team[f"{rank_prefix} Rank"]), team_count),
-                "Percentile": int(percentile),
-                "Interpretation": _semantic_band(percentile),
+                "Percentile Rank": int(percentile_rank),
+                "Value Score": int(value_score),
+                "Interpretation": _semantic_band(percentile_rank),
             }
         )
     return rows
@@ -392,30 +413,32 @@ def _render_inferences(
 ) -> None:
     team_count = len(team_rows)
     category_rows = _freiburg_category_context(freiburg_team, team_count)
-    strongest = max(category_rows, key=lambda row: row["Percentile"])
-    weakest = min(category_rows, key=lambda row: row["Percentile"])
+    strongest = max(category_rows, key=lambda row: row["Percentile Rank"])
+    weakest = min(category_rows, key=lambda row: row["Percentile Rank"])
     top_player = ranked_rows[0] if ranked_rows else None
     bullets = [
         (
             f"Freiburg's overall attacking PXT is {freiburg_team['PXT / Match']:.2f} per match, "
             f"ranking {_rank_label(int(freiburg_team['Team PXT Rank']), team_count)} in the league "
-            f"({int(freiburg_team['Team PXT Percentile'])}th percentile, "
-            f"{_semantic_band(float(freiburg_team['Team PXT Percentile']))})."
+            f"({int(freiburg_team['Team PXT Percentile Rank'])}th percentile rank, "
+            f"{int(freiburg_team['Team PXT Value Score'])} value score, "
+            f"{_semantic_band(float(freiburg_team['Team PXT Percentile Rank']))})."
         ),
         (
             f"The strongest source relative to the league is {strongest['Metric']} "
-            f"({strongest['Percentile']}th percentile)."
+            f"({strongest['Percentile Rank']}th percentile rank, {strongest['Value Score']} value score)."
         ),
         (
             f"The weakest source relative to the league is {weakest['Metric']} "
-            f"({weakest['Percentile']}th percentile)."
+            f"({weakest['Percentile Rank']}th percentile rank, {weakest['Value Score']} value score)."
         ),
     ]
     if top_player:
         bullets.append(
             f"Among Freiburg players meeting the minutes filter, {top_player['Player']} grades highest by "
             f"PXT / 90 percentile within his position group "
-            f"({int(top_player['PXT / 90 Percentile'])}th percentile, {top_player['PXT / 90 Meaning']})."
+            f"({int(top_player['PXT / 90 Percentile Rank'])}th percentile rank, "
+            f"{int(top_player['PXT / 90 Value Score'])} value score, {top_player['PXT / 90 Meaning']})."
         )
     st.markdown("**What This Suggests**")
     st.markdown("\n".join(f"- {item}" for item in bullets))
@@ -430,7 +453,7 @@ def render_threat_page(
 ) -> None:
     all_match_ids = tuple(int(match["id"]) for match in matches)
     all_player_rows = season_player_threat_rows(all_match_ids, players_by_id, squads_by_id)
-    team_rows = season_team_threat_rows(all_match_ids, squads_by_id)
+    team_rows = season_team_threat_rows(all_match_ids, squads_by_id, PERCENTILE_SCALE_VERSION)
     freiburg_rows = [row for row in all_player_rows if int(row["Team ID"]) == int(freiburg_id)]
     totals = _summary_totals(freiburg_rows)
     freiburg_team = next(row for row in team_rows if int(row["Team ID"]) == int(freiburg_id))
@@ -446,7 +469,7 @@ def render_threat_page(
     metric_cols = st.columns(4)
     metric_cols[0].metric("Team PXT / Match", f"{freiburg_team['PXT / Match']:.2f}")
     metric_cols[1].metric("League Rank", _rank_label(int(freiburg_team["Team PXT Rank"]), len(team_rows)))
-    metric_cols[2].metric("Team Percentile", f"{freiburg_team['Team PXT Percentile']:.0f}")
+    metric_cols[2].metric("Percentile Rank", f"{freiburg_team['Team PXT Percentile Rank']:.0f}")
     metric_cols[3].metric("Net / Match", f"{freiburg_team['Net / Match']:.2f}")
 
     st.markdown("**Freiburg vs League By Threat Source**")
@@ -463,10 +486,12 @@ def render_threat_page(
     ranking_metric = st.selectbox(
         "Rank players by",
         [
-            "PXT / 90 Percentile",
+            "PXT / 90 Percentile Rank",
             "PXT / 90",
-            "Net / 90 Percentile",
+            "PXT / 90 Value Score",
+            "Net / 90 Percentile Rank",
             "Net / 90",
+            "Net / 90 Value Score",
             "Receiving PXT / 90",
             "Shot / 90",
             "Pass / 90",
@@ -501,7 +526,8 @@ def render_threat_page(
         "Rank",
         "Player",
         "Position Group",
-        "PXT / 90 Percentile",
+        "PXT / 90 Percentile Rank",
+        "PXT / 90 Value Score",
         "PXT / 90 Meaning",
         "Position",
         "Matches",
@@ -510,7 +536,8 @@ def render_threat_page(
         "Net Threat",
         "PXT / 90",
         "Net / 90",
-        "Net / 90 Percentile",
+        "Net / 90 Percentile Rank",
+        "Net / 90 Value Score",
         "Receiving PXT / 90",
         "Shot / 90",
         "Pass / 90",
@@ -536,22 +563,28 @@ def render_threat_page(
             "Matches",
             "PXT Attack",
             "PXT / Match",
-            "Team PXT Percentile",
+            "Team PXT Percentile Rank",
+            "Team PXT Value Score",
             "Net Threat",
             "Net / Match",
-            "Team Net Percentile",
+            "Team Net Percentile Rank",
+            "Team Net Value Score",
             "Shot",
             "Shot / Match",
-            "Shot PXT Percentile",
+            "Shot PXT Percentile Rank",
+            "Shot PXT Value Score",
             "Pass",
             "Pass / Match",
-            "Pass PXT Percentile",
+            "Pass PXT Percentile Rank",
+            "Pass PXT Value Score",
             "Dribble",
             "Dribble / Match",
-            "Dribble PXT Percentile",
+            "Dribble PXT Percentile Rank",
+            "Dribble PXT Value Score",
             "Set Piece",
             "Set Piece / Match",
-            "Set Piece PXT Percentile",
+            "Set Piece PXT Percentile Rank",
+            "Set Piece PXT Value Score",
         ]
         st.dataframe(
             [{column: row.get(column, "") for column in team_display_columns} for row in team_rows],
@@ -563,10 +596,9 @@ def render_threat_page(
         st.markdown(
             "`PXT Attack` is Impect's own attacking-phase goal-threat change KPI. "
             "`Net Threat` subtracts opponent goal-threat change while Freiburg are attacking. "
-            "`Team Percentile` compares Freiburg's team PXT per match against the other Bundesliga teams. "
-            "`PXT / 90 Percentile` compares each Freiburg player to all league players in the same position group "
-            "who meet the selected minimum-minutes filter. "
-            "The player table is sorted by PXT / 90 percentile by default, so the ranking answers how strong a player "
-            "is against comparable league players rather than only how large the raw number is. "
+            "`Percentile Rank` shows peer standing: 100 is the best-ranked value in the comparison group and 0 is "
+            "the lowest-ranked value. `Value Score` rescales the actual PXT value between the comparison group's "
+            "minimum and maximum, so it shows distance from the top producer. "
+            "The player table is sorted by PXT / 90 percentile rank by default. "
             "`Receiving PXT` is shown separately because adding it to pass/set-piece PXT can double-count credit."
         )
