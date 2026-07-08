@@ -291,9 +291,11 @@ def _finalize_row(row: dict[str, Any]) -> dict[str, Any]:
     if position_minutes:
         row["Position Group"] = max(position_minutes.items(), key=lambda item: item[1])[0]
     row["Matches"] = len(row.pop("_match_ids"))
-    team_pos = float(row.pop("_team_possession_seconds") or 0.5)
-    opp_pos = float(row.pop("_opponent_possession_seconds") or 0.5)
     minutes = float(row["Minutes"])
+    team_possession_minutes = float(row.pop("_team_possession_seconds") or 0.0)
+    opponent_possession_minutes = float(row.pop("_opponent_possession_seconds") or 0.0)
+    team_pos = team_possession_minutes / minutes if minutes else 0.5
+    opp_pos = opponent_possession_minutes / minutes if minutes else 0.5
     row["Team Possession"] = team_pos
     row["Opponent Possession"] = opp_pos
     row["Dribble Success %"] = (
