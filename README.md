@@ -112,8 +112,5 @@ Passing networks use successful Freiburg teammate passes, split by substitution 
 
 ## TBDs
 
-- Attacking and Defensive Coefficients (improvements)
-- Passing networks per substitution per game for Freiburg and other team
-- xG plots per shot per game
-- xT (best player)
-- Per position radar plot, find consistent coverage / blindspots
+- add per-game heatmap
+- add seasonal heatmap

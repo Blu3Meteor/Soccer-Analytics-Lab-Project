@@ -123,6 +123,78 @@ CSS = """
     padding: 0.75rem 0.12rem 0;
 }
 
+.section-heading {
+    color: var(--ink);
+    font-size: 1rem;
+    font-weight: 900;
+    margin: 0 0 0.7rem;
+}
+
+.season-heatmap-shell {
+    display: grid;
+    gap: 0.7rem;
+    margin: 0.15rem 0 1.1rem;
+    padding: 0.85rem;
+    border: 1px solid var(--soft-border);
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.season-heatmap {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.season-heatmap-title {
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.season-heatmap svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: hidden;
+    border: 1px solid #d8dde3;
+    border-radius: 8px;
+    background: #2f8f53;
+}
+
+.heatmap-legend {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 92px;
+    gap: 0.55rem;
+    align-items: center;
+    color: var(--muted);
+    font-size: 0.74rem;
+    font-weight: 800;
+}
+
+.heatmap-scale {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    height: 10px;
+    overflow: hidden;
+    border: 1px solid #d8dde3;
+    border-radius: 999px;
+}
+
+.heatmap-scale i {
+    display: block;
+}
+
+.heatmap-scale-labels {
+    grid-column: 2;
+    display: flex;
+    justify-content: space-between;
+    margin-top: -0.35rem;
+    color: var(--muted);
+    font-size: 0.64rem;
+    font-weight: 800;
+}
+
 h1, h2, h3 {
     letter-spacing: 0;
 }
