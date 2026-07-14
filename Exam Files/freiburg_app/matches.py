@@ -1,3 +1,5 @@
+# PROVENANCE: AI-ASSISTED — MATCH DATA EXTRACTION / SUMMARY PREPARATION
+
 from __future__ import annotations
 
 from typing import Any

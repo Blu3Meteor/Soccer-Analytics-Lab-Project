@@ -1,3 +1,5 @@
+# PROVENANCE: AI-ASSISTED — DATA CONFIGURATION / KPI IDENTIFIERS
+
 from __future__ import annotations
 
 from pathlib import Path

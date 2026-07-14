@@ -1,3 +1,5 @@
+# PROVENANCE: AI-ASSISTED — REUSABLE WEBSITE COMPONENTS / PRESENTATION
+
 from __future__ import annotations
 
 from html import escape
@@ -40,6 +42,8 @@ def selected_page_from_query() -> str:
         return "League Table"
     if raw_value in {"threat", "attacking_threat", "pxt"}:
         return "Attacking Threat"
+    if raw_value in {"season_heatmaps", "heatmaps", "shot_maps"}:
+        return "Season Heatmaps"
     return "Home Page"
 
 
@@ -63,6 +67,7 @@ def render_sidebar_menu(current_page: str, selected_match_id: int) -> str:
     rankings_active = " sidebar-link-active" if current_page == "Player Rankings" else ""
     table_active = " sidebar-link-active" if current_page == "League Table" else ""
     threat_active = " sidebar-link-active" if current_page == "Attacking Threat" else ""
+    heatmaps_active = " sidebar-link-active" if current_page == "Season Heatmaps" else ""
     home_href = f"./?page=home&match_id={int(selected_match_id)}"
     details_href = f"./?page=match_details&match_id={int(selected_match_id)}"
 
@@ -83,6 +88,10 @@ def render_sidebar_menu(current_page: str, selected_match_id: int) -> str:
         f'<a class="sidebar-link{details_active}" href="{details_href}" target="_self">'
         '<span class="sidebar-link-title">Match Details</span>'
         '<span class="sidebar-link-meta">Networks, xT, Events</span>'
+        '</a>'
+        f'<a class="sidebar-link{heatmaps_active}" href="./?page=season_heatmaps" target="_self">'
+        '<span class="sidebar-link-title">Season Heatmaps</span>'
+        '<span class="sidebar-link-meta">Shot xG and positive PxT</span>'
         '</a>'
         f'<a class="sidebar-link{rankings_active}" href="./?page=player_rankings" target="_self">'
         '<span class="sidebar-link-title">Player Rankings</span>'

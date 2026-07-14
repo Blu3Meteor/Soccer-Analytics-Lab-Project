@@ -1,3 +1,7 @@
+# PROVENANCE: MIXED MODULE — SEE CODE_PROVENANCE.md
+# AI-assisted data preparation and UI code are mixed with PxT transformations,
+# percentile ranks, value scores, and interpretations that require verification.
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -56,6 +60,7 @@ OPP_THREAT_KPIS = {
 PERCENTILE_SCALE_VERSION = 3
 
 
+# AI-ASSISTED KPI DATA EXTRACTION / ROW PREPARATION
 def _player_kpi_map(player: dict[str, Any]) -> dict[int, float]:
     totals: dict[int, float] = defaultdict(float)
     for kpi in player.get("kpis", []):
@@ -130,7 +135,11 @@ def _add_player_segment(row: dict[str, Any], player: dict[str, Any], match_id: i
         row[label] = row.get(label, 0.0) + kpis[kpi_id]
 
 
+# MATHEMATICAL THREAT TRANSFORMATIONS — AUTHORSHIP TO VERIFY
 def _finalize_player_row(row: dict[str, Any]) -> dict[str, Any]:
+    # REVIEW NOTE: Net Threat is defined here as Freiburg attacking PxT minus
+    # opponent threat generated while Freiburg are attacking. It is a project
+    # definition and should not be confused with Impect's raw PXT Attack KPI.
     row["Matches"] = len(row.pop("_Match IDs"))
     position_minutes = row.pop("_Position Minutes")
     raw_position_minutes = row.pop("_Raw Position Minutes")
@@ -153,6 +162,12 @@ def _finalize_player_row(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _value_score(value: float, values: list[float]) -> float:
+    """Min-max scale a value to 0..100 within the current comparison group.
+
+    Unlike percentile rank, this retains relative distance, but it is sensitive
+    to the minimum and maximum observations. Equal values return 100 because no
+    within-group separation is possible; that convention requires justification.
+    """
     if not values:
         return 0.0
     minimum = min(values)
@@ -163,6 +178,7 @@ def _value_score(value: float, values: list[float]) -> float:
 
 
 def _percentile_rank(value: float, values: list[float]) -> float:
+    """Rank by the percentage of comparison values that are strictly lower."""
     if not values:
         return 0.0
     if len(values) == 1:
@@ -172,6 +188,8 @@ def _percentile_rank(value: float, values: list[float]) -> float:
 
 
 def _semantic_band(percentile: float) -> str:
+    # REVIEW NOTE: These labels are editorial thresholds, not thresholds supplied
+    # by Impect or estimated statistically. They require manual justification.
     if percentile >= 80:
         return "elite"
     if percentile >= 65:
@@ -189,6 +207,7 @@ def _rank_label(rank: int, total: int) -> str:
     return f"{rank} / {total}"
 
 
+# SEASON AGGREGATION AND COMPARISON — AUTHORSHIP TO VERIFY
 @st.cache_data(show_spinner=False)
 def season_player_threat_rows(
     match_ids: tuple[int, ...],
@@ -333,6 +352,7 @@ def _add_position_percentiles(
     return enriched
 
 
+# AI-ASSISTED STREAMLIT PRESENTATION / GENERATED TEXT
 def _render_metric_guide() -> None:
     st.markdown("**How To Read PXT**")
     st.markdown(

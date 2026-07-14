@@ -1,3 +1,7 @@
+# PROVENANCE: AUTHORSHIP TO VERIFY — MATHEMATICAL / STATISTICAL ANALYSIS
+# Do not label this module "manual" until its author confirms authorship and can
+# explain the definitions, assumptions, and calculations. See CODE_PROVENANCE.md.
+
 from __future__ import annotations
 
 from collections import Counter, defaultdict
@@ -65,6 +69,13 @@ def aggregate_kpis_for_team(player_kpis: dict[str, Any], team_id: int) -> dict[i
 
 
 def compute_possession(events: list[dict[str, Any]], team_ids: tuple[int, int]) -> dict[int, int]:
+    """Estimate possession as each team's share of recorded attacking events.
+
+    REVIEW NOTE: This is not time in possession. If ``n_i`` is the count of
+    eligible events for team i, the displayed percentage is
+    ``round(100 * n_i / (n_home + n_away))``. The away percentage is set to
+    ``100 - home`` so rounding cannot make the pair sum to 99 or 101.
+    """
     counts = Counter()
     ignored = {"FINAL_WHISTLE", "NO_VIDEO"}
     for event in events:
@@ -97,6 +108,13 @@ def compute_stats(
     player_kpis: dict[str, Any],
     events_kpis: list[dict[str, Any]] | None = None,
 ) -> dict[int, dict[str, Any]]:
+    """Combine player KPIs and event counts into the match-stat dictionary.
+
+    REVIEW NOTE: Pass accuracy uses successful / (successful + unsuccessful +
+    neutral) passes. xG is the sum of Impect KPI 82 attached to team events.
+    Fouls, offsides, and corners are direct event counts. These definitions
+    should be checked against the assessment's required metric definitions.
+    """
     home_id = int(match["homeSquadId"])
     away_id = int(match["awaySquadId"])
     team_ids = (home_id, away_id)
@@ -140,6 +158,7 @@ def compute_stats(
 
 
 def season_record(summaries: list[dict[str, Any]]) -> dict[str, int]:
+    """Apply the standard three-points-for-a-win league scoring rule."""
     record = Counter(summary["freiburgResult"] for summary in summaries)
     wins = record["W"]
     draws = record["D"]
@@ -154,6 +173,7 @@ def season_record(summaries: list[dict[str, Any]]) -> dict[str, int]:
 
 
 def points_progression(summaries: list[dict[str, Any]]) -> list[dict[str, int]]:
+    """Return cumulative points after each chronologically ordered match."""
     points_by_result = {"W": 3, "D": 1, "L": 0}
     total = 0
     rows = [{"Game": 0, "Points": 0}]

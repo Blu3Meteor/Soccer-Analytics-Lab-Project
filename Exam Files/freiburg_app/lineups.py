@@ -1,3 +1,6 @@
+# PROVENANCE: AI-ASSISTED — LINEUP DATA PREPARATION / PITCH VISUALISATION
+# Positional marker placement is a design mapping, not tracking-data analysis.
+
 from __future__ import annotations
 
 from collections import defaultdict

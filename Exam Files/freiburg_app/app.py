@@ -1,3 +1,5 @@
+# PROVENANCE: AI-ASSISTED — STREAMLIT ROUTING / WEBSITE DESIGN
+
 from __future__ import annotations
 
 import streamlit as st
@@ -10,6 +12,7 @@ from .league import render_league_table_page
 from .match_details import render_match_details_page
 from .matches import load_freiburg_match_summaries
 from .player_rankings import render_player_rankings_page
+from .season_heatmaps import render_season_heatmaps_page
 from .styles import apply_styles
 from .threat import render_threat_page
 
@@ -47,6 +50,10 @@ def main() -> None:
 
     if page == "Attacking Threat":
         render_threat_page(summaries, freiburg_id, players_by_id, squads_by_id, matches)
+        st.stop()
+
+    if page == "Season Heatmaps":
+        render_season_heatmaps_page(summaries, freiburg_id)
         st.stop()
 
     if page == "Player Rankings":

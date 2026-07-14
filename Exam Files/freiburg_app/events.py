@@ -1,3 +1,5 @@
+# PROVENANCE: AI-ASSISTED — EVENT DATA EXTRACTION / TABLE PREPARATION
+
 from __future__ import annotations
 
 from typing import Any

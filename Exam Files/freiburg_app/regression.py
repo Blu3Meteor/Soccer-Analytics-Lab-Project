@@ -1,3 +1,7 @@
+# PROVENANCE: AUTHORSHIP TO VERIFY — POISSON REGRESSION / MATHEMATICAL ANALYSIS
+# Do not label this module "manual" until its author confirms authorship and can
+# derive the model, fitting method, probability calculation, and limitations.
+
 from __future__ import annotations
 
 import math
@@ -20,6 +24,14 @@ def _fit_poisson_glm(
     tolerance: float = 1e-8,
     ridge: float = 1e-5,
 ) -> dict[str, Any]:
+    """Fit ``goals ~ home + team + opponent`` with Newton-style updates.
+
+    REVIEW NOTE: The linear predictor is on the log-goal scale and Freiburg is
+    the reference category. For a row r, ``mu_r = exp(x_r beta)``. The update
+    solves ``H step = gradient`` using a small ridge term for numerical
+    stability, then sets ``beta <- beta + step``. The 1.5 step cap is a
+    numerical safeguard rather than a football assumption.
+    """
     baseline_team = FREIBURG_NAME
     ordered_teams = [baseline_team] + [team for team in teams if team != baseline_team]
     parameter_names = ["Intercept", "home"]
@@ -51,6 +63,9 @@ def _fit_poisson_glm(
         hessian = [[0.0 for _ in beta] for _ in beta]
 
         for indices, goals_for_row in zip(design_rows, goals):
+            # Poisson log-likelihood derivatives:
+            # gradient contribution = x * (observed goals - expected goals)
+            # information contribution = x x' * expected goals.
             eta = sum(beta[index] for index in indices)
             mu = math.exp(min(20.0, max(-20.0, eta)))
             residual = goals_for_row - mu
@@ -100,6 +115,7 @@ def _fit_poisson_glm(
 
 
 def _solve_linear_system(matrix: list[list[float]], vector: list[float]) -> list[float]:
+    """Solve a dense linear system by Gauss-Jordan elimination with pivoting."""
     size = len(vector)
     augmented = [row[:] + [vector[index]] for index, row in enumerate(matrix)]
 
@@ -127,6 +143,7 @@ def _solve_linear_system(matrix: list[list[float]], vector: list[float]) -> list
 
 
 def _expected_goals(model: dict[str, Any], team: str, opponent: str, home: int) -> float:
+    """Transform the fitted log-rate into a positive expected-goals rate."""
     linear_prediction = (
         model["intercept"]
         + model["home_advantage"] * home
@@ -137,6 +154,7 @@ def _expected_goals(model: dict[str, Any], team: str, opponent: str, home: int) 
 
 
 def _poisson_probabilities(rate: float, max_goals: int = MAX_GOALS) -> list[float]:
+    """Calculate P(G=k) recursively for k=0..max_goals at a Poisson rate."""
     first_probability = math.exp(-rate)
     probabilities = [first_probability]
     for goals in range(1, max_goals + 1):
@@ -145,6 +163,12 @@ def _poisson_probabilities(rate: float, max_goals: int = MAX_GOALS) -> list[floa
 
 
 def _outcome_probabilities(home_rate: float, away_rate: float) -> dict[str, float]:
+    """Sum independent home/away score probabilities into W/D/L outcomes.
+
+    REVIEW NOTE: Scores above ``MAX_GOALS`` are omitted. Dividing each outcome
+    total by ``total_probability`` renormalises the retained score grid to one.
+    Independence of the two Poisson goal counts is a modelling assumption.
+    """
     home_probs = _poisson_probabilities(home_rate)
     away_probs = _poisson_probabilities(away_rate)
     total_probability = 0.0
@@ -173,6 +197,11 @@ def _outcome_probabilities(home_rate: float, away_rate: float) -> dict[str, floa
 
 
 def build_regression_outputs() -> dict[str, Any]:
+    """Fit the league model and accumulate fixture-level expected points.
+
+    Expected points are ``3*P(win) + P(draw)``. Expected goal difference is the
+    season sum of fitted goals for minus fitted goals against.
+    """
     squads, _, matches = load_reference_data()
     teams = sorted(squad["name"] for squad in squads.values())
     team_names_by_id = {team_id: squad["name"] for team_id, squad in squads.items()}

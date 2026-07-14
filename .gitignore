@@ -5,3 +5,7 @@ Reference Github
 Exam Data
 
 Exam Files/exam
+
+# Python runtime artifacts
+__pycache__/
+*.py[cod]

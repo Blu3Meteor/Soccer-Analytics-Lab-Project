@@ -1,3 +1,5 @@
+# PROVENANCE: AI-ASSISTED — STREAMLIT HOME-PAGE PRESENTATION
+
 from __future__ import annotations
 
 from typing import Any
@@ -21,7 +23,6 @@ from .data import (
 from .events import card_events, scoring_events, shot_events
 from .lineups import lineup_for_team, render_lineup_panel
 from .metrics import compute_stats, opposition_team, points_progression, season_record, shot_xg_by_event, stat_rows
-from .season_heatmaps import render_home_season_heatmaps
 
 
 def render_home_page(
@@ -44,8 +45,6 @@ def render_home_page(
         with st.expander("Points progression", expanded=False):
             st.line_chart(points_chart_data, x="Game", y="Points")
     st.markdown("</div>", unsafe_allow_html=True)
-
-    render_home_season_heatmaps(summaries, freiburg_id)
 
     render_match_strip(summaries, selected_index, squads_by_id)
 

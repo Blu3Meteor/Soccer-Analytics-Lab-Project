@@ -1,3 +1,5 @@
+# PROVENANCE: AI-ASSISTED — STREAMLIT WEBSITE ENTRY POINT
+
 from __future__ import annotations
 
 import streamlit as st

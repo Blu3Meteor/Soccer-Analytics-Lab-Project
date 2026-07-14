@@ -1,3 +1,6 @@
+# PROVENANCE: AI-ASSISTED — IMPECT DATA EXTRACTION / DISPLAY FORMATTING
+# This module loads and labels source data; it does not interpret performance.
+
 from __future__ import annotations
 
 import json

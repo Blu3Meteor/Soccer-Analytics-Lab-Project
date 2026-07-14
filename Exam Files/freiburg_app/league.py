@@ -1,3 +1,7 @@
+# PROVENANCE: MIXED MODULE — SEE CODE_PROVENANCE.md
+# Data/table construction and Streamlit presentation currently share this file.
+# The website rendering is AI-assisted; analysis authorship must be verified.
+
 from __future__ import annotations
 
 from html import escape
@@ -11,6 +15,7 @@ from .metrics import compute_score
 from .regression import build_regression_outputs
 
 
+# ANALYSIS / TABLE CONSTRUCTION — AUTHORSHIP TO VERIFY
 @st.cache_data(show_spinner=False)
 def build_league_table() -> list[dict[str, Any]]:
     squads, _, matches = load_reference_data()
@@ -77,6 +82,7 @@ def build_league_table() -> list[dict[str, Any]]:
     return rows
 
 
+# AI-ASSISTED WEBSITE PRESENTATION
 def render_league_table_page(squads: dict[int, dict[str, Any]]) -> None:
     rows = build_league_table()
     regression = build_regression_outputs()

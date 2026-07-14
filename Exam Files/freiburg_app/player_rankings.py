@@ -1,3 +1,7 @@
+# PROVENANCE: MIXED MODULE — SEE CODE_PROVENANCE.md
+# AI-assisted extraction and radar/UI code are mixed with ranking calculations.
+# Do not claim the mathematical sections as manual until authorship is verified.
+
 from __future__ import annotations
 
 import math
@@ -121,6 +125,7 @@ RADAR_CONFIGS: dict[str, list[dict[str, Any]]] = {
 }
 
 
+# AI-ASSISTED DATA EXTRACTION / PLAYER-EVENT PREPARATION
 def _position_bucket(position: str | None) -> str:
     value = position or ""
     if "GOALKEEPER" in value:
@@ -286,6 +291,8 @@ def _add_events(
                     keeper["Goals Conceded"] += 1
 
 
+# MATHEMATICAL PLAYER SCORING — AUTHORSHIP TO VERIFY
+# This section defines derived rates, opportunity adjustments, and ranks.
 def _finalize_row(row: dict[str, Any]) -> dict[str, Any]:
     position_minutes = row.pop("_position_minutes")
     if position_minutes:
@@ -315,10 +322,18 @@ def _finalize_row(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _per90(value: float, minutes: float) -> float:
+    # REVIEW NOTE: This linear exposure adjustment assumes rates are comparable
+    # over different minute totals after the minimum-minutes filter is applied.
     return value / minutes * 90 if minutes else 0.0
 
 
 def _adjusted_value(row: dict[str, Any], metric: dict[str, Any]) -> float:
+    """Convert counts to per-90 and rescale opportunity to 50% possession.
+
+    Attacking metrics are multiplied by 0.5/team-possession share; defensive
+    metrics by 0.5/opponent-possession share. The 0.05 floor avoids unstable
+    division but is a modelling choice that must be justified by the author.
+    """
     key = metric["key"]
     kind = metric.get("kind", "neutral")
     value = float(row.get(key, 0.0))
@@ -333,6 +348,11 @@ def _adjusted_value(row: dict[str, Any], metric: dict[str, Any]) -> float:
 
 
 def _percentile_rank(value: float, values: list[float]) -> float:
+    """Return 100 * count(strictly lower values) / (comparison size - 1).
+
+    Tied values therefore receive the same rank based only on strictly lower
+    observations. A percentile rank describes ordering, not distance.
+    """
     if not values:
         return 0.0
     if len(values) == 1:
@@ -341,6 +361,7 @@ def _percentile_rank(value: float, values: list[float]) -> float:
     return round((below / (len(values) - 1)) * 100, 0)
 
 
+# AI-ASSISTED DATASET ASSEMBLY
 @st.cache_data(show_spinner=False)
 def build_player_ranking_rows(
     match_ids: tuple[int, ...],
@@ -386,6 +407,7 @@ def build_player_ranking_rows(
     return final_rows
 
 
+# MATHEMATICAL POSITION COMPARISON — AUTHORSHIP TO VERIFY
 def _score_position_rows(rows: list[dict[str, Any]], position: str, minimum_minutes: int) -> list[dict[str, Any]]:
     config = RADAR_CONFIGS[position]
     eligible = [
@@ -417,6 +439,7 @@ def _score_position_rows(rows: list[dict[str, Any]], position: str, minimum_minu
     return scored
 
 
+# AI-ASSISTED RADAR AND STREAMLIT PRESENTATION
 def _radar_svg(player: dict[str, Any], position: str) -> str:
     config = RADAR_CONFIGS[position]
     values = [float(player.get(f"{metric['label']} Score", 0.0)) for metric in config]

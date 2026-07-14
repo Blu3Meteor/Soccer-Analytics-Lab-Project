@@ -1,3 +1,5 @@
+# PROVENANCE: AI-ASSISTED — WEBSITE CSS / VISUAL DESIGN
+
 from __future__ import annotations
 
 import streamlit as st
@@ -130,24 +132,14 @@ CSS = """
     margin: 0 0 0.7rem;
 }
 
-.season-heatmap-shell {
-    display: grid;
-    gap: 0.7rem;
-    margin: 0.15rem 0 1.1rem;
-    padding: 0.85rem;
-    border: 1px solid var(--soft-border);
-    border-radius: 8px;
-    background: #ffffff;
-}
-
 .season-heatmap {
     display: grid;
-    gap: 0.45rem;
+    gap: 0.55rem;
 }
 
 .season-heatmap-title {
-    color: var(--muted);
-    font-size: 0.82rem;
+    color: #475467;
+    font-size: 0.8rem;
     font-weight: 800;
     line-height: 1.25;
 }
@@ -157,14 +149,38 @@ CSS = """
     width: 100%;
     height: auto;
     overflow: hidden;
-    border: 1px solid #d8dde3;
-    border-radius: 8px;
-    background: #2f8f53;
+    border: 1px solid #263d34;
+    border-radius: 10px;
+    background: #142820;
+    box-shadow: 0 7px 20px rgba(15, 23, 42, 0.12);
+}
+
+.heatmap-zone {
+    cursor: crosshair;
+    transition: filter 120ms ease, stroke 120ms ease, stroke-width 120ms ease;
+}
+
+.heatmap-zone:hover,
+.heatmap-zone:focus {
+    outline: none;
+    stroke: rgba(255, 255, 255, 0.98);
+    stroke-width: 0.7;
+}
+
+.heatmap-tooltip {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 90ms ease;
+}
+
+.heatmap-hover-target:hover .heatmap-tooltip,
+.heatmap-hover-target:focus-within .heatmap-tooltip {
+    opacity: 1;
 }
 
 .heatmap-legend {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 92px;
+    grid-template-columns: minmax(0, 1fr) 110px;
     gap: 0.55rem;
     align-items: center;
     color: var(--muted);

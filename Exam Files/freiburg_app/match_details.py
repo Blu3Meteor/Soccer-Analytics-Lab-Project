@@ -1,3 +1,7 @@
+# PROVENANCE: MIXED MODULE — SEE CODE_PROVENANCE.md
+# AI-assisted data preparation and SVG/Streamlit plots are mixed with passing-
+# network and xT calculations whose authorship must be verified independently.
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -46,6 +50,7 @@ PXT_ACTION_KPIS = {
 }
 
 
+# AI-ASSISTED DATA EXTRACTION / COORDINATE AND EVENT PREPARATION
 def _clock_seconds(value: dict[str, Any] | str | None) -> float:
     if isinstance(value, dict):
         raw = value.get("gameTime", "")
@@ -94,6 +99,7 @@ def _player_short_name(player_id: int, players: dict[int, dict[str, Any]]) -> st
     return name[:12]
 
 
+# AI-ASSISTED SVG VISUALISATION
 def _pitch_background() -> str:
     return (
         '<rect x="0" y="0" width="105" height="68" rx="1.8" fill="#2f8f53"/>'
@@ -134,6 +140,8 @@ def _svg_wrapper(inner: str) -> str:
     )
 
 
+# ANALYTICAL TRANSFORMATIONS — AUTHORSHIP TO VERIFY
+# This section defines tactical segments and passing-network measurements.
 def _freiburg_substitution_times(lineup: dict[str, Any]) -> list[tuple[float, str]]:
     by_second: dict[float, str] = {}
     for substitution in lineup.get("substitutions", []):
@@ -239,6 +247,7 @@ def _pass_network_rows(
     return rows, edge_counts, centralisation
 
 
+# AI-ASSISTED PASS-NETWORK VISUALISATION
 def _render_pass_network(
     passes: list[dict[str, Any]],
     players: dict[int, dict[str, Any]],
@@ -278,6 +287,7 @@ def _render_pass_network(
     return _svg_wrapper("".join(lines + markers)), rows, centralisation
 
 
+# AI-ASSISTED DATA EXTRACTION, FOLLOWED BY xT AGGREGATION REQUIRING REVIEW
 def _event_pxt_values(events_kpis: list[dict[str, Any]]) -> dict[int, dict[str, Any]]:
     values: dict[int, dict[str, Any]] = defaultdict(lambda: {"total": 0.0, "by_type": defaultdict(float)})
     for item in events_kpis:
@@ -585,6 +595,7 @@ def _build_up_table_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+# AI-ASSISTED SHOT-BUILD-UP VISUALISATION
 def _render_build_up_map(rows: list[dict[str, Any]], players: dict[int, dict[str, Any]]) -> str:
     if not rows:
         return ""
@@ -760,6 +771,7 @@ def _selected_match_from_details_selector(
     return summaries[chosen_index]
 
 
+# AI-ASSISTED STREAMLIT PAGE PRESENTATION
 def render_match_details_page(
     summaries: list[dict[str, Any]],
     selected_index: int,
