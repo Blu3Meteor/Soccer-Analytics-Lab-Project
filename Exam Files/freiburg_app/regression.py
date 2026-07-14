@@ -1,6 +1,7 @@
-# PROVENANCE: AUTHORSHIP TO VERIFY — POISSON REGRESSION / MATHEMATICAL ANALYSIS
-# Do not label this module "manual" until its author confirms authorship and can
-# derive the model, fitting method, probability calculation, and limitations.
+# PROVENANCE: AI-ASSISTED DRAFT — POISSON REGRESSION / MATHEMATICAL ANALYSIS
+# This module was created with AI assistance and is not human-authored. Anyone
+# presenting it must still understand the model, fitting method, probabilities,
+# numerical safeguards, assumptions, and limitations documented below.
 
 from __future__ import annotations
 

@@ -85,6 +85,7 @@ The dashboard now has six dedicated sidebar views.
 - Shot and goal build-up maps showing the actions leading to a selected attempt.
 - Build-up sequence metrics and tables with action-level xT contributions.
 - Match-level xT player rankings and a table of the leading xT actions.
+- AI-assisted Match Heatmaps comparing the selected match with Freiburg's same-block average across the other 33 matches, with Value/Volume views, hover details, raw inputs, and a downloadable source dataset.
 - Starting lineups, benches, substitutions, goal events, card events, shot events, and raw event data.
 
 ### Season Heatmaps
@@ -180,7 +181,3 @@ Passing networks use successful teammate passes for both teams, split by substit
 
 - No yellow card data is present in the events_kpis folder.
 - No positional / tracking data makes it impossible to evaluate general play (e.g. decoy runs, etc), so the findings are solely based on events.
-
-## Possible next steps
-
-- Add a dedicated per-match shot and PxT heatmap for direct game-to-game comparison.

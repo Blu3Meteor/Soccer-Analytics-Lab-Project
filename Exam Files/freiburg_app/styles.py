@@ -211,6 +211,35 @@ CSS = """
     font-weight: 800;
 }
 
+.comparison-legend {
+    display: grid;
+    grid-template-columns: auto 1fr 1fr 1fr auto;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 800;
+}
+
+.comparison-legend i {
+    display: block;
+    height: 9px;
+}
+
+.comparison-negative {
+    background: rgba(56, 139, 253, 0.9);
+    border-radius: 999px 0 0 999px;
+}
+
+.comparison-neutral {
+    background: rgba(148, 163, 184, 0.32);
+}
+
+.comparison-positive {
+    background: rgba(239, 68, 68, 0.9);
+    border-radius: 0 999px 999px 0;
+}
+
 h1, h2, h3 {
     letter-spacing: 0;
 }

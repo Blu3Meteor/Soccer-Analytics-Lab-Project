@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import csv
+from io import StringIO
 from typing import Any
 
 import streamlit as st
@@ -139,3 +141,57 @@ def season_freiburg_heatmap_data(
         "total_xg": round(total_xg, 2),
         "total_pxt": round(total_pxt, 2),
     }
+
+
+def heatmap_block_rows(match_id: int, data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Flatten one match's four raw grids into auditable block-level rows.
+
+    This is data preparation only. No season baseline, difference, ratio,
+    percentile, label, or football interpretation is calculated here.
+    """
+    cell_width = PITCH_LENGTH / GRID_COLUMNS
+    cell_height = PITCH_WIDTH / GRID_ROWS
+    rows: list[dict[str, Any]] = []
+    for row_index in range(GRID_ROWS):
+        for column_index in range(GRID_COLUMNS):
+            rows.append(
+                {
+                    "Match ID": int(match_id),
+                    "Block": f"R{row_index + 1}C{column_index + 1}",
+                    "Row": row_index,
+                    "Column": column_index,
+                    "X start (m)": round(column_index * cell_width, 3),
+                    "X end (m)": round((column_index + 1) * cell_width, 3),
+                    "Y start (m)": round(row_index * cell_height, 3),
+                    "Y end (m)": round((row_index + 1) * cell_height, 3),
+                    "Shots": int(round(data["shot_grid"][row_index][column_index])),
+                    "xG": round(float(data["xg_grid"][row_index][column_index]), 6),
+                    "Positive PxT actions": int(round(data["action_grid"][row_index][column_index])),
+                    "Positive PxT": round(float(data["pxt_grid"][row_index][column_index]), 6),
+                }
+            )
+    return rows
+
+
+@st.cache_data(show_spinner=False)
+def match_heatmap_source_rows(
+    match_ids: tuple[int, ...],
+    freiburg_id: int,
+) -> list[dict[str, Any]]:
+    """Return raw block rows for each match, ready for student analysis."""
+    rows: list[dict[str, Any]] = []
+    for match_id in match_ids:
+        match_data = season_freiburg_heatmap_data((int(match_id),), int(freiburg_id))
+        rows.extend(heatmap_block_rows(int(match_id), match_data))
+    return rows
+
+
+def heatmap_rows_csv(rows: list[dict[str, Any]]) -> str:
+    """Serialize extracted block rows so they can be reviewed independently."""
+    if not rows:
+        return ""
+    output = StringIO()
+    writer = csv.DictWriter(output, fieldnames=list(rows[0]))
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()

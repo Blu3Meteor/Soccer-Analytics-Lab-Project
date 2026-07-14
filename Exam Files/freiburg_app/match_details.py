@@ -10,7 +10,7 @@ from typing import Any
 
 import streamlit as st
 
-from .components import render_scoreboard
+from .components import query_param_value, render_scoreboard
 from .config import (
     KPI_PXT_BALL_WIN,
     KPI_PXT_BLOCK,
@@ -34,6 +34,7 @@ from .data import (
 )
 from .events import card_events, scoring_events, shot_events
 from .lineups import lineup_for_team, render_lineup_panel
+from .match_heatmap_scaffold import render_match_heatmap_scaffold
 from .metrics import compute_stats, opposition_team, shot_xg_by_event, stat_rows
 
 
@@ -716,8 +717,31 @@ def _event_table_rows(events: list[dict[str, Any]], players: dict[int, dict[str,
 
 def _detail_section_selector(match_id: int, sections: list[str]) -> str:
     key = f"match_details_section_{match_id}"
+    detail_aliases = {
+        "overview": "Overview",
+        "passing_networks": "Passing Networks",
+        "shot_build_up": "Shot Build-up xT",
+        "match_heatmaps": "Match Heatmaps",
+        "lineups": "Lineups",
+        "event_data": "Event Data",
+    }
+    section_slugs = {section: slug for slug, section in detail_aliases.items()}
+    requested_detail = query_param_value("detail")
+    requested_section = detail_aliases.get(requested_detail or "")
+    applied_query_key = f"{key}_applied_query"
+
+    # Apply a direct-link section once when its URL value changes. Tracking the
+    # applied value prevents the URL from locking the selector against clicks.
+    if requested_section in sections and st.session_state.get(applied_query_key) != requested_detail:
+        st.session_state[key] = requested_section
+        st.session_state[applied_query_key] = requested_detail
     if st.session_state.get(key) not in sections:
         st.session_state[key] = sections[0]
+
+    def sync_detail_query() -> None:
+        if hasattr(st, "query_params"):
+            selected_section = st.session_state.get(key, sections[0])
+            st.query_params["detail"] = section_slugs.get(selected_section, "overview")
 
     if hasattr(st, "segmented_control"):
         selected = st.segmented_control(
@@ -726,6 +750,7 @@ def _detail_section_selector(match_id: int, sections: list[str]) -> str:
             key=key,
             label_visibility="collapsed",
             width="stretch",
+            on_change=sync_detail_query,
         )
     else:
         selected = st.radio(
@@ -814,7 +839,7 @@ def render_match_details_page(
 
     section = _detail_section_selector(
         match_id,
-        ["Overview", "Passing Networks", "Shot Build-up xT", "Lineups", "Event Data"],
+        ["Overview", "Passing Networks", "Shot Build-up xT", "Match Heatmaps", "Lineups", "Event Data"],
     )
 
     if section == "Overview":
@@ -823,6 +848,12 @@ def render_match_details_page(
         metric_cols[1].metric("Freiburg Shots", int(stats[freiburg_id]["shots"]))
         metric_cols[2].metric("Pass Accuracy", f"{stats[freiburg_id]['pass_accuracy']:.1f}%")
         metric_cols[3].metric("Opponent", short_team_name(team_name(opponent_id, squads_by_id)))
+
+        st.markdown(
+            f'<a class="detail-link" href="./?page=match_details&match_id={match_id}&detail=match_heatmaps" '
+            'target="_self">Open Match Heatmaps Comparison</a>',
+            unsafe_allow_html=True,
+        )
 
         st.markdown("**Match Stats**")
         overview_stat_rows = stat_rows(stats, home_id, away_id, home_name, away_name)
@@ -946,6 +977,9 @@ def render_match_details_page(
                 hide_index=True,
                 width="stretch",
             )
+
+    elif section == "Match Heatmaps":
+        render_match_heatmap_scaffold(summaries, selected_match, freiburg_id)
 
     elif section == "Lineups":
         lineup_columns = st.columns(2)

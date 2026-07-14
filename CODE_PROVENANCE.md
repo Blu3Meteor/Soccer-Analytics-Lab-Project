@@ -20,6 +20,14 @@ Only the person who wrote and understands an analytical section should replace a
 | Mathematics | `Exam Files/freiburg_app/season_heatmap_analysis.py` | AI-assisted draft; manual review required | Apply the mass-preserving 3-by-3 smoothing kernel, choose the display cap, and calculate attacking-third shares. |
 | Visual | `Exam Files/freiburg_app/season_heatmaps.py` | AI-assisted | Build Streamlit metrics and controls, map values to colours, draw SVG pitches, and show hover tooltips. |
 
+### Advanced Match Details comparison
+
+- `match_heatmap_scaffold.py` is AI-assisted Streamlit website/data-display code.
+- `season_heatmap_data.py` prepares one raw row per match and pitch block.
+- `match_heatmap_comparison.py` is an **AI-assisted mathematical analysis**. It compares the selected block with the arithmetic mean of the same block in the other 33 matches and reports `selected - normal`.
+- `match_heatmap_comparison_plot.py` contains the **AI-assisted SVG plots**. Red means above the other-match average, blue means below it, and no smoothing is applied.
+- None of the comparison analysis or plotting code is human-authored.
+
 ### Heatmap mathematics to understand before assessment
 
 1. **Grid definition:** the 105m by 68m pitch is divided into 12 equal x bins and 8 equal y bins.
@@ -42,17 +50,17 @@ Only the person who wrote and understands an analytical section should replace a
 - `lineups.py`: lineup extraction and pitch/table presentation. Marker positions are a design mapping, not tracking analysis.
 - `season_heatmap_data.py`, `season_heatmaps.py`: heatmap extraction and presentation as described above.
 
-### Analytical modules whose authorship must be verified
+### Analytical modules
 
 - `metrics.py`: score reconstruction, attacking-event-share possession proxy, match statistics, season points, and xG aggregation.
-- `regression.py`: Poisson GLM fitting, expected-goal rates, score probabilities, and expected points.
+- `regression.py`: **AI-assisted mathematical analysis** for Poisson GLM fitting, expected-goal rates, score probabilities, and expected points. It is not human-authored.
 - `season_heatmap_analysis.py`: AI-assisted analytical draft; this one is known not to be manual.
 
 ### Mixed legacy modules
 
 #### `league.py`
 
-- Analysis/transformation: `build_league_table` and the use of `build_regression_outputs`. Authorship must be verified.
+- Analysis/transformation: `build_league_table` requires authorship verification; the imported `build_regression_outputs` calculation is explicitly AI-assisted.
 - AI-assisted presentation: `render_league_table_page` and the HTML table.
 
 #### `match_details.py`
