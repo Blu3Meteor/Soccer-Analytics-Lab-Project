@@ -820,12 +820,6 @@ def render_match_details_page(
         metric_cols[2].metric("Pass Accuracy", f"{stats[freiburg_id]['pass_accuracy']:.1f}%")
         metric_cols[3].metric("Opponent", short_team_name(team_name(opponent_id, squads_by_id)))
 
-        st.markdown(
-            f'<a class="detail-link" href="./?page=match_details&match_id={match_id}&detail=match_heatmaps" '
-            'target="_self">Open Match Heatmaps Comparison</a>',
-            unsafe_allow_html=True,
-        )
-
         st.markdown("**Match Stats**")
         overview_stat_rows = stat_rows(stats, home_id, away_id, home_name, away_name)
         best_xt_players = _best_xt_player_by_team(match_xt_rows)
