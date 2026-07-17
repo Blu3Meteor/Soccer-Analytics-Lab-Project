@@ -33,13 +33,12 @@ from .data import (
     team_name,
 )
 from .events import card_events, scoring_events, shot_events
+from .event_utils import PITCH_LENGTH, PITCH_WIDTH, clamp, event_player_id, event_team_id, event_xy
 from .lineups import lineup_for_team, render_lineup_panel
 from .match_heatmap_scaffold import render_match_heatmap_scaffold
 from .metrics import compute_stats, opposition_team, shot_xg_by_event, stat_rows
 
 
-PITCH_LENGTH = 105.0
-PITCH_WIDTH = 68.0
 PXT_ACTION_KPIS = {
     KPI_PXT_PASS: "Pass",
     KPI_PXT_DRIBBLE: "Dribble",
@@ -74,20 +73,6 @@ def _clock_seconds(value: dict[str, Any] | str | None) -> float:
         return float(parts[0]) + added_seconds
     except ValueError:
         return 0.0
-
-
-def _clip(value: float, lower: float, upper: float) -> float:
-    return min(upper, max(lower, value))
-
-
-def _event_xy(event: dict[str, Any], key: str) -> tuple[float, float] | None:
-    point = event.get(key) or {}
-    coords = point.get("adjCoordinates") or point.get("coordinates")
-    if not coords:
-        return None
-    x = _clip(float(coords.get("x", 0.0)) + PITCH_LENGTH / 2, 0.0, PITCH_LENGTH)
-    y = _clip(PITCH_WIDTH / 2 - float(coords.get("y", 0.0)), 0.0, PITCH_WIDTH)
-    return x, y
 
 
 def _player_short_name(player_id: int, players: dict[int, dict[str, Any]]) -> str:
@@ -207,8 +192,8 @@ def _pass_network_rows(
             continue
         passer_id = int(passer_id_raw)
         receiver_id = int(receiver_id_raw)
-        start_xy = _event_xy(event, "start")
-        end_xy = _event_xy(event, "end")
+        start_xy = event_xy(event, "start")
+        end_xy = event_xy(event, "end")
         if not start_xy or not end_xy:
             continue
 
@@ -303,20 +288,6 @@ def _event_pxt_values(events_kpis: list[dict[str, Any]]) -> dict[int, dict[str, 
     return values
 
 
-def _event_team_id(event: dict[str, Any]) -> int | None:
-    squad_id = event.get("squadId")
-    if squad_id is None:
-        return None
-    return int(squad_id)
-
-
-def _event_player_id(event: dict[str, Any]) -> int | None:
-    player_id = (event.get("player") or {}).get("id")
-    if player_id is None:
-        return None
-    return int(player_id)
-
-
 def _event_sort_key(event: dict[str, Any]) -> tuple[int, float, int]:
     return (
         int(event.get("periodId") or 0),
@@ -338,13 +309,13 @@ def _event_xt_row(
     if not include_zero and abs(value) < 0.000001 and action_type not in {"SHOT", "GOAL", "OWN_GOAL"}:
         return None
 
-    start_xy = _event_xy(event, "start")
-    end_xy = _event_xy(event, "end") or start_xy
+    start_xy = event_xy(event, "start")
+    end_xy = event_xy(event, "end") or start_xy
     if not start_xy or not end_xy:
         return None
 
-    team_id = _event_team_id(event)
-    player_id = _event_player_id(event)
+    team_id = event_team_id(event)
+    player_id = event_player_id(event)
     by_type = value_data.get("by_type", {})
     dominant_type = max(by_type.items(), key=lambda item: abs(item[1]))[0] if by_type else format_position(action_type)
 
@@ -379,7 +350,7 @@ def _match_xt_rows(
     values_by_event = _event_pxt_values(events_kpis)
     rows = []
     for event in events:
-        team_id = _event_team_id(event)
+        team_id = event_team_id(event)
         if team_id is None:
             continue
         if team_ids is not None and team_id not in team_ids:
@@ -559,7 +530,7 @@ def _build_up_rows(
         )
         if not row:
             continue
-        if event_id != target_id and _event_xy(event, "end") is None and abs(float(row["xT"])) < 0.000001:
+        if event_id != target_id and event_xy(event, "end") is None and abs(float(row["xT"])) < 0.000001:
             continue
         row["is_target"] = event_id == target_id
         rows.append(row)
@@ -628,8 +599,8 @@ def _render_build_up_map(rows: list[dict[str, Any]], players: dict[int, dict[str
         end_y = float(row["end_y"])
         label = f"xT {value:+.3f}"
         label_width = max(9.0, len(label) * 1.05)
-        label_x = _clip(((start_x + end_x) / 2) - (label_width / 2), 1.0, PITCH_LENGTH - label_width - 1.0)
-        label_y = _clip(((start_y + end_y) / 2) - 4.2, 1.0, PITCH_WIDTH - 4.4)
+        label_x = clamp(((start_x + end_x) / 2) - (label_width / 2), 1.0, PITCH_LENGTH - label_width - 1.0)
+        label_y = clamp(((start_y + end_y) / 2) - 4.2, 1.0, PITCH_WIDTH - 4.4)
         if abs(start_x - end_x) < 0.1 and abs(start_y - end_y) < 0.1:
             arrows.append(
                 f'<circle cx="{start_x:.2f}" cy="{start_y:.2f}" r="{width + 0.8:.2f}" '

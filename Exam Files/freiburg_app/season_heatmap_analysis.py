@@ -5,7 +5,10 @@
 
 from __future__ import annotations
 
-from .season_heatmap_data import GRID_COLUMNS, GRID_ROWS, empty_grid
+import numpy as np
+from scipy.signal import convolve2d
+
+from .season_heatmap_data import GRID_COLUMNS
 
 
 def smooth_grid(grid: list[list[float]]) -> list[list[float]]:
@@ -26,30 +29,14 @@ def smooth_grid(grid: list[list[float]]) -> list[list[float]]:
     the smoothed grid equals the sum of the raw grid. This is a display aid,
     not a statistical density estimate and not evidence of event locations.
     """
-    kernel = ((1.0, 2.0, 1.0), (2.0, 4.0, 2.0), (1.0, 2.0, 1.0))
-    smoothed = empty_grid()
+    values = np.maximum(np.asarray(grid, dtype=float), 0.0)
+    kernel = np.array(((1.0, 2.0, 1.0), (2.0, 4.0, 2.0), (1.0, 2.0, 1.0)))
 
-    for source_row, row in enumerate(grid):
-        for source_column, value in enumerate(row):
-            if value <= 0:
-                continue
-
-            valid_neighbours: list[tuple[int, int, float]] = []
-            for row_offset in range(-1, 2):
-                for column_offset in range(-1, 2):
-                    target_row = source_row + row_offset
-                    target_column = source_column + column_offset
-                    if 0 <= target_row < GRID_ROWS and 0 <= target_column < GRID_COLUMNS:
-                        weight = kernel[row_offset + 1][column_offset + 1]
-                        valid_neighbours.append((target_row, target_column, weight))
-
-            # The local denominator changes at an edge, which is why this is
-            # calculated per source block rather than fixed at 16 everywhere.
-            local_weight_total = sum(weight for _row, _column, weight in valid_neighbours)
-            for target_row, target_column, weight in valid_neighbours:
-                smoothed[target_row][target_column] += value * weight / local_weight_total
-
-    return smoothed
+    # Each source cell has its own edge-aware denominator. Normalise sources
+    # first, then let SciPy distribute them through the symmetric kernel.
+    local_weight_totals = convolve2d(np.ones_like(values), kernel, mode="same")
+    smoothed = convolve2d(values / local_weight_totals, kernel, mode="same")
+    return smoothed.tolist()
 
 
 def display_scale_maximum(grid: list[list[float]]) -> float:
@@ -63,11 +50,11 @@ def display_scale_maximum(grid: list[list[float]]) -> float:
     statistical percentile. For ``n`` positive values, the selected zero-based
     index is ``min(n - 1, floor(0.9 * n))``.
     """
-    non_zero = sorted(value for row in grid for value in row if value > 0)
-    if not non_zero:
+    positive = np.asarray(grid, dtype=float)
+    positive = positive[positive > 0]
+    if positive.size == 0:
         return 0.0
-    percentile_index = min(len(non_zero) - 1, int(len(non_zero) * 0.9))
-    return non_zero[percentile_index]
+    return float(np.quantile(positive, 0.9, method="higher"))
 
 
 def attacking_third_share(grid: list[list[float]]) -> float:
@@ -77,6 +64,7 @@ def attacking_third_share(grid: list[list[float]]) -> float:
     8 to 11 represent x from 70m to 105m. The denominator is the complete grid
     total. An empty grid returns 0 instead of dividing by zero.
     """
-    total = sum(value for row in grid for value in row)
-    attacking_total = sum(row[column] for row in grid for column in range(8, GRID_COLUMNS))
+    values = np.asarray(grid, dtype=float)
+    total = float(values.sum())
+    attacking_total = float(values[:, 8:GRID_COLUMNS].sum())
     return attacking_total / total if total else 0.0

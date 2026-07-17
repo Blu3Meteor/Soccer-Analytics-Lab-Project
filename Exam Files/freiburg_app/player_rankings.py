@@ -5,12 +5,13 @@
 from __future__ import annotations
 
 import math
-from collections import Counter, defaultdict
+from collections import defaultdict
 from html import escape
 from typing import Any
 
 import streamlit as st
 
+from .analysis_utils import per_90, percentile_rank
 from .config import (
     KPI_DEF_PXT_ACTIVE,
     KPI_DEF_PXT_BALL_WIN,
@@ -25,6 +26,7 @@ from .config import (
     KPI_SHOT_XG,
 )
 from .data import load_match_events, load_match_events_kpis, load_match_player_kpis, player_name, team_name
+from .event_utils import attacking_event_shares, event_coordinate_x, event_kpi_values, event_player_id
 
 
 KPI_ASSISTS = 77
@@ -184,39 +186,6 @@ def _empty_row(
     return row
 
 
-def _event_player_id(event: dict[str, Any]) -> int | None:
-    value = (event.get("player") or {}).get("id")
-    return int(value) if value is not None else None
-
-
-def _adj_x(event: dict[str, Any], point_key: str) -> float | None:
-    point = event.get(point_key) or {}
-    coords = point.get("adjCoordinates") or point.get("coordinates")
-    if not coords:
-        return None
-    return float(coords.get("x", 0.0))
-
-
-def _match_possession_seconds(events: list[dict[str, Any]], home_id: int, away_id: int) -> dict[int, float]:
-    counts = Counter()
-    for event in events:
-        team_id = event.get("currentAttackingSquadId")
-        if team_id in {home_id, away_id} and event.get("actionType") not in {"FINAL_WHISTLE", "NO_VIDEO"}:
-            counts[int(team_id)] += 1
-    total = sum(counts.values())
-    if total == 0:
-        return {home_id: 0.5, away_id: 0.5}
-    return {home_id: counts[home_id] / total, away_id: counts[away_id] / total}
-
-
-def _event_kpi_lookup(events_kpis: list[dict[str, Any]], kpi_id: int) -> dict[int, float]:
-    values: dict[int, float] = defaultdict(float)
-    for item in events_kpis:
-        if int(item.get("kpiId", -1)) == int(kpi_id):
-            values[int(item["eventId"])] += float(item.get("value") or 0.0)
-    return values
-
-
 def _add_kpis(row: dict[str, Any], player: dict[str, Any]) -> None:
     values = _kpi_map(player)
     for label, kpi_id in KPI_MAP_KEYS.items():
@@ -230,8 +199,8 @@ def _add_events(
     home_id: int,
     away_id: int,
 ) -> None:
-    xg_by_event = _event_kpi_lookup(events_kpis, KPI_SHOT_XG)
-    postshot_xg_by_event = _event_kpi_lookup(events_kpis, 1401)
+    xg_by_event = event_kpi_values(events_kpis, KPI_SHOT_XG)
+    postshot_xg_by_event = event_kpi_values(events_kpis, 1401)
     goalkeepers = {
         (team_id, player_id): row
         for (team_id, player_id), row in player_rows.items()
@@ -243,7 +212,7 @@ def _add_events(
 
     for event in events:
         team_id_raw = event.get("squadId")
-        player_id = _event_player_id(event)
+        player_id = event_player_id(event)
         action_type = event.get("actionType")
         action = event.get("action")
         if team_id_raw is None or player_id is None:
@@ -257,11 +226,11 @@ def _add_events(
             elif action_type == "GOAL" and action != "PENALTY_KICK":
                 row["NP Goals"] += 1
             elif action_type == "RECEPTION":
-                start_x = _adj_x(event, "start")
+                start_x = event_coordinate_x(event, "start")
                 if start_x is not None and start_x >= 17.5:
                     row["Final Third Receptions"] += 1
             elif action_type == "PASS":
-                end_x = _adj_x(event, "end")
+                end_x = event_coordinate_x(event, "end")
                 if end_x is not None and end_x >= 17.5:
                     row["Passes Ending Final Third"] += 1
             elif action_type == "DRIBBLE":
@@ -321,12 +290,6 @@ def _finalize_row(row: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
-def _per90(value: float, minutes: float) -> float:
-    # REVIEW NOTE: This linear exposure adjustment assumes rates are comparable
-    # over different minute totals after the minimum-minutes filter is applied.
-    return value / minutes * 90 if minutes else 0.0
-
-
 def _adjusted_value(row: dict[str, Any], metric: dict[str, Any]) -> float:
     """Convert counts to per-90 and rescale opportunity to 50% possession.
 
@@ -339,26 +302,12 @@ def _adjusted_value(row: dict[str, Any], metric: dict[str, Any]) -> float:
     value = float(row.get(key, 0.0))
     if kind == "rate":
         return value
-    value = _per90(value, float(row["Minutes"]))
+    value = per_90(value, float(row["Minutes"]))
     if kind == "attack":
         return value * 0.5 / max(0.05, float(row["Team Possession"]))
     if kind == "defense":
         return value * 0.5 / max(0.05, float(row["Opponent Possession"]))
     return value
-
-
-def _percentile_rank(value: float, values: list[float]) -> float:
-    """Return 100 * count(strictly lower values) / (comparison size - 1).
-
-    Tied values therefore receive the same rank based only on strictly lower
-    observations. A percentile rank describes ordering, not distance.
-    """
-    if not values:
-        return 0.0
-    if len(values) == 1:
-        return 100.0
-    below = sum(1 for item in values if item < value)
-    return round((below / (len(values) - 1)) * 100, 0)
 
 
 # AI-ASSISTED DATASET ASSEMBLY
@@ -376,7 +325,7 @@ def build_player_ranking_rows(
         events_kpis = load_match_events_kpis(match_id)
         home_id = int(player_kpis["squadHome"]["id"])
         away_id = int(player_kpis["squadAway"]["id"])
-        possession = _match_possession_seconds(events, home_id, away_id)
+        possession = attacking_event_shares(events, (home_id, away_id))
 
         for side_key in ("squadHome", "squadAway"):
             side = player_kpis.get(side_key, {})
@@ -424,7 +373,7 @@ def _score_position_rows(rows: list[dict[str, Any]], position: str, minimum_minu
         raw_values = []
         for metric in config:
             value = _adjusted_value(copy, metric)
-            score = _percentile_rank(value, metric_values[metric["label"]])
+            score = percentile_rank(value, metric_values[metric["label"]])
             copy[f"{metric['label']} Score"] = score
             copy[f"{metric['label']} Value"] = round(value, 3)
             radar_values.append(score)

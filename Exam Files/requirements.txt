@@ -1,2 +1,6 @@
 streamlit>=1.36
+numpy>=1.26
+pandas>=2.2
+statsmodels>=0.14
+scipy>=1.13
 watchdog

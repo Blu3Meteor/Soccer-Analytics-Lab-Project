@@ -10,15 +10,15 @@ from typing import Any
 import streamlit as st
 
 from .config import FREIBURG_NAME
-from .data import load_match_events, load_reference_data, squad_logo_url
-from .metrics import compute_score
+from .data import load_reference_data, squad_logo_url
+from .matches import load_scored_matches
 from .regression import build_regression_outputs
 
 
 # ANALYSIS / TABLE CONSTRUCTION — AUTHORSHIP TO VERIFY
 @st.cache_data(show_spinner=False)
 def build_league_table() -> list[dict[str, Any]]:
-    squads, _, matches = load_reference_data()
+    squads, _, _ = load_reference_data()
     table = {
         squad_id: {
             "team_id": squad_id,
@@ -35,13 +35,11 @@ def build_league_table() -> list[dict[str, Any]]:
         for squad_id, squad in squads.items()
     }
 
-    for match in matches:
+    for match in load_scored_matches():
         home_id = int(match["homeSquadId"])
         away_id = int(match["awaySquadId"])
-        events = load_match_events(int(match["id"]))
-        score = compute_score(events, home_id, away_id)
-        home_goals = score[home_id]
-        away_goals = score[away_id]
+        home_goals = int(match["homeScore"])
+        away_goals = int(match["awayScore"])
 
         table[home_id]["played"] += 1
         table[away_id]["played"] += 1

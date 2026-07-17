@@ -155,7 +155,7 @@ The model fits:
 goals ~ home + team + opponent
 ```
 
-It uses the coefficients to estimate each fixture's scoring rates, outcome probabilities, expected points, and expected goal difference.
+It uses Statsmodels to fit the Poisson GLM, then NumPy and SciPy to estimate each fixture's scoring rates, outcome probabilities, expected points, and expected goal difference. Pandas is used for the model table and heatmap comparisons.
 
 ## Match Details models
 

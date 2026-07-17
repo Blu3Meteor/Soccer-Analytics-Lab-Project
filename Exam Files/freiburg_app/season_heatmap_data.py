@@ -6,10 +6,9 @@
 from __future__ import annotations
 
 from collections import defaultdict
-import csv
-from io import StringIO
 from typing import Any
 
+import pandas as pd
 import streamlit as st
 
 from .config import (
@@ -23,10 +22,9 @@ from .config import (
     KPI_SHOT_XG,
 )
 from .data import load_match_events, load_match_events_kpis
+from .event_utils import PITCH_LENGTH, PITCH_WIDTH, event_xy
 
 
-PITCH_LENGTH = 105.0
-PITCH_WIDTH = 68.0
 GRID_COLUMNS = 12
 GRID_ROWS = 8
 PXT_KPIS = {
@@ -38,22 +36,6 @@ PXT_KPIS = {
     KPI_PXT_BALL_WIN,
     KPI_PXT_FOUL,
 }
-
-
-def _clip(value: float, lower: float, upper: float) -> float:
-    """Keep an adjusted coordinate inside the physical pitch boundary."""
-    return min(upper, max(lower, value))
-
-
-def _event_xy(event: dict[str, Any], key: str) -> tuple[float, float] | None:
-    """Convert Impect centre-origin coordinates to a 0..105 by 0..68 pitch."""
-    point = event.get(key) or {}
-    coords = point.get("adjCoordinates") or point.get("coordinates")
-    if not coords:
-        return None
-    x = _clip(float(coords.get("x", 0.0)) + PITCH_LENGTH / 2, 0.0, PITCH_LENGTH)
-    y = _clip(PITCH_WIDTH / 2 - float(coords.get("y", 0.0)), 0.0, PITCH_WIDTH)
-    return x, y
 
 
 def _event_kpi_totals(events_kpis: list[dict[str, Any]]) -> tuple[dict[int, float], dict[int, float]]:
@@ -111,7 +93,7 @@ def season_freiburg_heatmap_data(
             # A shot contributes once to the volume grid and contributes its xG
             # value to the quality grid at the event's starting coordinate.
             if action_type in {"SHOT", "GOAL"}:
-                xy = _event_xy(event, "start")
+                xy = event_xy(event, "start")
                 if xy:
                     value = max(0.0, xg_by_event.get(event_id, 0.0))
                     _add_to_grid(xg_grid, xy[0], xy[1], value)
@@ -123,7 +105,7 @@ def season_freiburg_heatmap_data(
             # coordinate is a documented fallback for events without an end.
             pxt_value = max(0.0, pxt_by_event.get(event_id, 0.0))
             if pxt_value > 0:
-                xy = _event_xy(event, "end") or _event_xy(event, "start")
+                xy = event_xy(event, "end") or event_xy(event, "start")
                 if xy:
                     _add_to_grid(pxt_grid, xy[0], xy[1], pxt_value)
                     _add_to_grid(action_grid, xy[0], xy[1], 1.0)
@@ -188,10 +170,4 @@ def match_heatmap_source_rows(
 
 def heatmap_rows_csv(rows: list[dict[str, Any]]) -> str:
     """Serialize extracted block rows so they can be reviewed independently."""
-    if not rows:
-        return ""
-    output = StringIO()
-    writer = csv.DictWriter(output, fieldnames=list(rows[0]))
-    writer.writeheader()
-    writer.writerows(rows)
-    return output.getvalue()
+    return pd.DataFrame(rows).to_csv(index=False) if rows else ""

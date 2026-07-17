@@ -47,13 +47,15 @@ Only the person who wrote and understands an analytical section should replace a
 - `components.py`, `home.py`, `styles.py`: presentation and website design.
 - `config.py`: data paths and Impect KPI identifiers.
 - `data.py`, `events.py`, `matches.py`: JSON loading, filtering, formatting, and table preparation.
+- `event_utils.py`: shared event IDs, coordinates, KPI indexing, and attacking-event-share extraction.
 - `lineups.py`: lineup extraction and pitch/table presentation. Marker positions are a design mapping, not tracking analysis.
 - `season_heatmap_data.py`, `season_heatmaps.py`: heatmap extraction and presentation as described above.
 
 ### Analytical modules
 
 - `metrics.py`: score reconstruction, attacking-event-share possession proxy, match statistics, season points, and xG aggregation.
-- `regression.py`: **AI-assisted mathematical analysis** for Poisson GLM fitting, expected-goal rates, score probabilities, and expected points. It is not human-authored.
+- `analysis_utils.py`: shared per-90, percentile-rank, and min-max transformations. These remain AI-assisted mathematical definitions requiring review.
+- `regression.py`: **AI-assisted mathematical analysis** using Statsmodels for Poisson GLM fitting and NumPy/SciPy for expected-goal rates, score probabilities, and expected points. It is not human-authored.
 - `season_heatmap_analysis.py`: AI-assisted analytical draft; this one is known not to be manual.
 
 ### Mixed legacy modules

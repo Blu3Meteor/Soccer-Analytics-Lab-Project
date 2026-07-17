@@ -19,6 +19,7 @@ from .config import (
     KPI_YELLOW_CARD,
 )
 from .data import short_team_name
+from .event_utils import attacking_event_shares, event_kpi_values
 
 
 def opposition_team(match: dict[str, Any], team_id: int) -> int:
@@ -76,26 +77,9 @@ def compute_possession(events: list[dict[str, Any]], team_ids: tuple[int, int]) 
     ``round(100 * n_i / (n_home + n_away))``. The away percentage is set to
     ``100 - home`` so rounding cannot make the pair sum to 99 or 101.
     """
-    counts = Counter()
-    ignored = {"FINAL_WHISTLE", "NO_VIDEO"}
-    for event in events:
-        attacking_team = event.get("currentAttackingSquadId")
-        if attacking_team in team_ids and event.get("actionType") not in ignored:
-            counts[int(attacking_team)] += 1
-    total = sum(counts.values())
-    if total == 0:
-        return {team_ids[0]: 50, team_ids[1]: 50}
-    first = int(round((counts[team_ids[0]] / total) * 100))
+    shares = attacking_event_shares(events, team_ids)
+    first = int(round(shares[team_ids[0]] * 100))
     return {team_ids[0]: first, team_ids[1]: max(0, 100 - first)}
-
-
-def event_kpi_values(events_kpis: list[dict[str, Any]], kpi_id: int) -> dict[int, float]:
-    values: dict[int, float] = defaultdict(float)
-    for item in events_kpis:
-        if int(item.get("kpiId", -1)) != int(kpi_id):
-            continue
-        values[int(item["eventId"])] += float(item.get("value") or 0.0)
-    return values
 
 
 def shot_xg_by_event(events_kpis: list[dict[str, Any]]) -> dict[int, float]:

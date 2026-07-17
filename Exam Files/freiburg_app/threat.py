@@ -9,6 +9,7 @@ from typing import Any
 
 import streamlit as st
 
+from .analysis_utils import minmax_score, percentile_rank
 from .config import (
     KPI_DEF_PXT_ATTACK,
     KPI_DEF_PXT_DEFEND,
@@ -161,32 +162,6 @@ def _finalize_player_row(row: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
-def _value_score(value: float, values: list[float]) -> float:
-    """Min-max scale a value to 0..100 within the current comparison group.
-
-    Unlike percentile rank, this retains relative distance, but it is sensitive
-    to the minimum and maximum observations. Equal values return 100 because no
-    within-group separation is possible; that convention requires justification.
-    """
-    if not values:
-        return 0.0
-    minimum = min(values)
-    maximum = max(values)
-    if maximum == minimum:
-        return 100.0
-    return round(((value - minimum) / (maximum - minimum)) * 100, 0)
-
-
-def _percentile_rank(value: float, values: list[float]) -> float:
-    """Rank by the percentage of comparison values that are strictly lower."""
-    if not values:
-        return 0.0
-    if len(values) == 1:
-        return 100.0
-    below = sum(1 for item in values if item < value)
-    return round((below / (len(values) - 1)) * 100, 0)
-
-
 def _semantic_band(percentile: float) -> str:
     # REVIEW NOTE: These labels are editorial thresholds, not thresholds supplied
     # by Impect or estimated statistically. They require manual justification.
@@ -312,8 +287,8 @@ def season_team_threat_rows(
         ranked = sorted(rows, key=lambda item: (-float(item[metric]), item["Team"]))
         for rank, row in enumerate(ranked, start=1):
             row[f"{label} Rank"] = rank
-            row[f"{label} Percentile Rank"] = _percentile_rank(float(row[metric]), values)
-            row[f"{label} Value Score"] = _value_score(float(row[metric]), values)
+            row[f"{label} Percentile Rank"] = percentile_rank(float(row[metric]), values)
+            row[f"{label} Value Score"] = minmax_score(float(row[metric]), values)
     return rows
 
 
@@ -343,10 +318,10 @@ def _add_position_percentiles(
     for row in freiburg_rows:
         copy = dict(row)
         group = copy["Position Group"]
-        copy["PXT / 90 Percentile Rank"] = _percentile_rank(float(copy["PXT / 90"]), pxt_groups[group])
-        copy["PXT / 90 Value Score"] = _value_score(float(copy["PXT / 90"]), pxt_groups[group])
-        copy["Net / 90 Percentile Rank"] = _percentile_rank(float(copy["Net / 90"]), net_groups[group])
-        copy["Net / 90 Value Score"] = _value_score(float(copy["Net / 90"]), net_groups[group])
+        copy["PXT / 90 Percentile Rank"] = percentile_rank(float(copy["PXT / 90"]), pxt_groups[group])
+        copy["PXT / 90 Value Score"] = minmax_score(float(copy["PXT / 90"]), pxt_groups[group])
+        copy["Net / 90 Percentile Rank"] = percentile_rank(float(copy["Net / 90"]), net_groups[group])
+        copy["Net / 90 Value Score"] = minmax_score(float(copy["Net / 90"]), net_groups[group])
         copy["PXT / 90 Meaning"] = _semantic_band(float(copy["PXT / 90 Percentile Rank"]))
         enriched.append(copy)
     return enriched

@@ -7,14 +7,8 @@ import streamlit as st
 from .components import render_sidebar_menu, selected_match_id_from_query, selected_page_from_query
 from .config import DATA_ROOT
 from .data import load_reference_data
-from .home import render_home_page
-from .league import render_league_table_page
-from .match_details import render_match_details_page
 from .matches import load_freiburg_match_summaries
-from .player_rankings import render_player_rankings_page
-from .season_heatmaps import render_season_heatmaps_page
 from .styles import apply_styles
-from .threat import render_threat_page
 
 
 def main() -> None:
@@ -31,8 +25,7 @@ def main() -> None:
         st.error("No SC Freiburg matches were found in the Exam Data.")
         st.stop()
 
-    if "selected_match_index" not in st.session_state:
-        st.session_state.selected_match_index = 0
+    st.session_state.setdefault("selected_match_index", 0)
 
     query_match_id = selected_match_id_from_query()
     if query_match_id is not None:
@@ -45,23 +38,26 @@ def main() -> None:
     page = render_sidebar_menu(selected_page_from_query(), int(summaries[selected_index]["id"]))
 
     if page == "League Table":
+        from .league import render_league_table_page
+
         render_league_table_page(squads_by_id)
-        st.stop()
+    elif page == "Attacking Threat":
+        from .threat import render_threat_page
 
-    if page == "Attacking Threat":
         render_threat_page(summaries, freiburg_id, players_by_id, squads_by_id, matches)
-        st.stop()
+    elif page == "Season Heatmaps":
+        from .season_heatmaps import render_season_heatmaps_page
 
-    if page == "Season Heatmaps":
         render_season_heatmaps_page(summaries, freiburg_id)
-        st.stop()
+    elif page == "Player Rankings":
+        from .player_rankings import render_player_rankings_page
 
-    if page == "Player Rankings":
         render_player_rankings_page(freiburg_id, squads_by_id, players_by_id, matches)
-        st.stop()
+    elif page == "Match Details":
+        from .match_details import render_match_details_page
 
-    if page == "Match Details":
         render_match_details_page(summaries, selected_index, freiburg_id, squads_by_id, players_by_id)
-        st.stop()
+    else:
+        from .home import render_home_page
 
-    render_home_page(summaries, selected_index, freiburg_id, squads_by_id, players_by_id)
+        render_home_page(summaries, selected_index, freiburg_id, squads_by_id, players_by_id)
