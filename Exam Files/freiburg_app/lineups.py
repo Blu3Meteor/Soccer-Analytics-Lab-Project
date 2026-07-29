@@ -13,6 +13,43 @@ from .config import FREIBURG_NAME
 from .data import format_position, minute_label, player_name
 
 
+PlayerRankLookup = dict[tuple[int, int], dict[str, Any]]
+
+
+def _player_rank(
+    lineup: dict[str, Any],
+    player_id: int,
+    player_ranks: PlayerRankLookup | None,
+) -> dict[str, Any] | None:
+    if not player_ranks:
+        return None
+    return player_ranks.get((int(lineup.get("id", -1)), int(player_id)))
+
+
+def _rank_label(rank_data: dict[str, Any] | None, detailed: bool = False) -> str:
+    if not rank_data or rank_data.get("rank") is None:
+        return "NR"
+    if detailed:
+        return f'{int(rank_data["rank"])} / {int(rank_data["total"])}'
+    return f'#{int(rank_data["rank"])}'
+
+
+def _rank_tooltip(rank_data: dict[str, Any] | None) -> str:
+    if not rank_data:
+        return "No season ranking data"
+    position = str(rank_data["position_group"])
+    minutes = float(rank_data["minutes"])
+    if rank_data.get("rank") is None:
+        return (
+            f"Not ranked · {minutes:.0f} minutes · "
+            f"{int(rank_data['minimum_minutes'])}-minute minimum"
+        )
+    return (
+        f'{position} rank {int(rank_data["rank"])} of {int(rank_data["total"])} · '
+        f'{float(rank_data["mean_percentile"]):.1f} mean percentile · {minutes:.0f} minutes'
+    )
+
+
 def lineup_for_team(lineups: dict[str, Any], team_id: int) -> dict[str, Any]:
     for key in ("squadHome", "squadAway"):
         squad = lineups.get(key, {})
@@ -24,6 +61,7 @@ def lineup_for_team(lineups: dict[str, Any], team_id: int) -> dict[str, Any]:
 def lineup_rows(
     lineup: dict[str, Any],
     players: dict[int, dict[str, Any]],
+    player_ranks: PlayerRankLookup | None = None,
 ) -> list[dict[str, Any]]:
     shirts = {int(player["id"]): player.get("shirtNumber") for player in lineup.get("players", [])}
     rows = []
@@ -33,6 +71,7 @@ def lineup_rows(
             {
                 "#": shirts.get(player_id, ""),
                 "Player": player_name(player_id, players),
+                "Position rank": _rank_label(_player_rank(lineup, player_id, player_ranks), detailed=True),
                 "Position": format_position(position.get("position")),
                 "Side": format_position(position.get("positionSide")),
             }
@@ -124,6 +163,7 @@ def render_lineup_pitch(
     title: str,
     lineup: dict[str, Any],
     players: dict[int, dict[str, Any]],
+    player_ranks: PlayerRankLookup | None = None,
 ) -> None:
     shirts = shirt_numbers(lineup)
     markers = []
@@ -133,11 +173,20 @@ def render_lineup_pitch(
         shirt = shirts.get(player_id, "")
         full_name = player_name(player_id, players)
         short_name = player_display_name(player_id, players)
+        rank_data = _player_rank(lineup, player_id, player_ranks)
+        rank_label = _rank_label(rank_data)
+        tooltip = (
+            f"{full_name} · {format_position(marker['position'])} · "
+            f"{_rank_tooltip(rank_data)}"
+        )
         markers.append(
             f'<div class="player-marker" style="left: {marker["x"]:.1f}%; top: {marker["y"]:.1f}%;" '
-            f'title="{escape(full_name)} · {escape(format_position(marker["position"]))}">'
+            f'title="{escape(tooltip)}">'
             f'<div class="player-shirt" style="background: {color};">{escape(str(shirt))}</div>'
+            '<div class="player-label-row">'
             f'<div class="player-name">{escape(short_name)}</div>'
+            f'<span class="player-rank">{escape(rank_label)}</span>'
+            '</div>'
             '</div>'
         )
 
@@ -150,18 +199,32 @@ def render_lineup_pitch(
     )
 
 
-def bench_rows(lineup: dict[str, Any], players: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:
+def bench_rows(
+    lineup: dict[str, Any],
+    players: dict[int, dict[str, Any]],
+    player_ranks: PlayerRankLookup | None = None,
+) -> list[dict[str, Any]]:
     starter_ids = {int(position["playerId"]) for position in lineup.get("startingPositions", [])}
     rows = []
     for player in lineup.get("players", []):
         player_id = int(player["id"])
         if player_id in starter_ids:
             continue
-        rows.append({"#": player.get("shirtNumber", ""), "Player": player_name(player_id, players)})
+        rows.append(
+            {
+                "#": player.get("shirtNumber", ""),
+                "Player": player_name(player_id, players),
+                "Position rank": _rank_label(_player_rank(lineup, player_id, player_ranks), detailed=True),
+            }
+        )
     return rows
 
 
-def substitution_rows(lineup: dict[str, Any], players: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:
+def substitution_rows(
+    lineup: dict[str, Any],
+    players: dict[int, dict[str, Any]],
+    player_ranks: PlayerRankLookup | None = None,
+) -> list[dict[str, Any]]:
     rows = []
     for sub in lineup.get("substitutions", []):
         from_position = sub.get("fromPosition")
@@ -179,6 +242,10 @@ def substitution_rows(lineup: dict[str, Any], players: dict[int, dict[str, Any]]
             {
                 "Time": minute_label(sub.get("gameTime")),
                 "Player": player_name(int(sub["playerId"]), players),
+                "Position rank": _rank_label(
+                    _player_rank(lineup, int(sub["playerId"]), player_ranks),
+                    detailed=True,
+                ),
                 "Move": movement,
                 "_class": movement_class,
                 "From": format_position(from_position),
@@ -196,6 +263,7 @@ def render_substitution_table(rows: list[dict[str, Any]]) -> str:
             "<tr>"
             f"<td>{escape(str(row.get('Time', '')))}</td>"
             f"<td>{escape(str(row.get('Player', '')))}</td>"
+            f"<td>{escape(str(row.get('Position rank', '')))}</td>"
             f'<td><span class="sub-move {movement_class}">{escape(str(row.get("Move", "")))}</span></td>'
             f"<td>{escape(str(row.get('From', '')))}</td>"
             f"<td>{escape(str(row.get('To', '')))}</td>"
@@ -203,7 +271,7 @@ def render_substitution_table(rows: list[dict[str, Any]]) -> str:
         )
     return (
         '<table class="sub-table">'
-        "<thead><tr><th>Time</th><th>Player</th><th>Move</th><th>From</th><th>To</th></tr></thead>"
+        "<thead><tr><th>Time</th><th>Player</th><th>Position rank</th><th>Move</th><th>From</th><th>To</th></tr></thead>"
         f"<tbody>{''.join(body)}</tbody>"
         "</table>"
     )
@@ -213,17 +281,21 @@ def render_lineup_panel(
     title: str,
     lineup: dict[str, Any],
     players: dict[int, dict[str, Any]],
+    player_ranks: PlayerRankLookup | None = None,
 ) -> None:
     formation = lineup.get("startingFormation", "Unknown")
     st.markdown(f"**{title} · {formation}**")
-    render_lineup_pitch(title, lineup, players)
-    st.markdown('<div class="lineup-note">Starters shown by shirt number and role.</div>', unsafe_allow_html=True)
+    render_lineup_pitch(title, lineup, players, player_ranks)
+    st.markdown(
+        '<div class="lineup-note">Badge shows league-wide position-group rank · NR means below 450 minutes.</div>',
+        unsafe_allow_html=True,
+    )
     with st.expander("Starting XI", expanded=False):
-        st.dataframe(lineup_rows(lineup, players), hide_index=True, width="stretch")
+        st.dataframe(lineup_rows(lineup, players, player_ranks), hide_index=True, width="stretch")
     with st.expander("Bench", expanded=False):
-        st.dataframe(bench_rows(lineup, players), hide_index=True, width="stretch")
+        st.dataframe(bench_rows(lineup, players, player_ranks), hide_index=True, width="stretch")
     with st.expander("Substitutions", expanded=False):
-        rows = substitution_rows(lineup, players)
+        rows = substitution_rows(lineup, players, player_ranks)
         if rows:
             st.markdown(render_substitution_table(rows), unsafe_allow_html=True)
         else:

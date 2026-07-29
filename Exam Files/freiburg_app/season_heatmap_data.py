@@ -66,11 +66,11 @@ def _add_to_grid(grid: list[list[float]], x: float, y: float, value: float) -> N
 
 
 @st.cache_data(show_spinner=False)
-def season_freiburg_heatmap_data(
+def team_heatmap_data(
     match_ids: tuple[int, ...],
-    freiburg_id: int,
+    team_id: int,
 ) -> dict[str, Any]:
-    """Extract season shot/xG and positive-PxT grids from Impect event files."""
+    """Extract shot/xG and positive-PxT grids for one team from Impect events."""
     xg_grid = empty_grid()
     shot_grid = empty_grid()
     pxt_grid = empty_grid()
@@ -85,7 +85,7 @@ def season_freiburg_heatmap_data(
         events_kpis = load_match_events_kpis(match_id)
         xg_by_event, pxt_by_event = _event_kpi_totals(events_kpis)
         for event in events:
-            if int(event.get("squadId") or -1) != int(freiburg_id):
+            if int(event.get("squadId") or -1) != int(team_id):
                 continue
             event_id = int(event["id"])
             action_type = event.get("actionType")
@@ -123,6 +123,14 @@ def season_freiburg_heatmap_data(
         "total_xg": round(total_xg, 2),
         "total_pxt": round(total_pxt, 2),
     }
+
+
+def season_freiburg_heatmap_data(
+    match_ids: tuple[int, ...],
+    freiburg_id: int,
+) -> dict[str, Any]:
+    """Backward-compatible Freiburg-specific wrapper used by season views."""
+    return team_heatmap_data(match_ids, freiburg_id)
 
 
 def heatmap_block_rows(match_id: int, data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -164,6 +172,18 @@ def match_heatmap_source_rows(
     rows: list[dict[str, Any]] = []
     for match_id in match_ids:
         match_data = season_freiburg_heatmap_data((int(match_id),), int(freiburg_id))
+        rows.extend(heatmap_block_rows(int(match_id), match_data))
+    return rows
+
+
+@st.cache_data(show_spinner=False)
+def opponent_match_heatmap_source_rows(
+    match_opponent_ids: tuple[tuple[int, int], ...],
+) -> list[dict[str, Any]]:
+    """Return raw block rows for the opponent Freiburg faced in each match."""
+    rows: list[dict[str, Any]] = []
+    for match_id, opponent_id in match_opponent_ids:
+        match_data = team_heatmap_data((int(match_id),), int(opponent_id))
         rows.extend(heatmap_block_rows(int(match_id), match_data))
     return rows
 

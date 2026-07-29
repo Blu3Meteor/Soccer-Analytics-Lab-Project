@@ -17,13 +17,13 @@ def _format_value(value: float, metric: str, signed: bool = False) -> str:
     return f"{sign}{value:.3f}"
 
 
-def _difference_color(value: float, maximum: float) -> str:
-    """Map negative differences to blue and positive differences to red."""
+def _difference_color(value: float, maximum: float, invert_colors: bool = False) -> str:
+    """Map differences to blue/red, optionally reversing the color semantics."""
     if maximum <= 0 or abs(value) < 1e-12:
         return "rgba(255,255,255,0.035)"
     intensity = min(1.0, abs(value) / maximum)
     alpha = 0.12 + intensity * 0.80
-    if value > 0:
+    if (value > 0) != invert_colors:
         return f"rgba(239,68,68,{alpha:.3f})"
     return f"rgba(56,139,253,{alpha:.3f})"
 
@@ -53,8 +53,10 @@ def render_match_comparison_svg(
     comparison_rows: list[dict[str, Any]],
     metric: str,
     title: str,
+    reverse_direction: bool = False,
+    invert_colors: bool = False,
 ) -> str:
-    """Render raw block differences on a left-to-right football pitch."""
+    """Render raw block differences, optionally with attack moving right to left."""
     maximum = max((abs(float(row["Difference"])) for row in comparison_rows), default=0.0)
     cell_width = PITCH_LENGTH / GRID_COLUMNS
     cell_height = PITCH_WIDTH / GRID_ROWS
@@ -62,9 +64,17 @@ def render_match_comparison_svg(
     hover_targets: list[str] = []
 
     for row in comparison_rows:
-        x = int(row["Column"]) * cell_width
+        x = (
+            PITCH_LENGTH - (int(row["Column"]) + 1) * cell_width
+            if reverse_direction
+            else int(row["Column"]) * cell_width
+        )
         y = int(row["Row"]) * cell_height
         difference = float(row["Difference"])
+        tooltip_row = dict(row)
+        if reverse_direction:
+            tooltip_row["X start (m)"] = PITCH_LENGTH - float(row["X end (m)"])
+            tooltip_row["X end (m)"] = PITCH_LENGTH - float(row["X start (m)"])
         aria = (
             f'{row["Block"]}, {metric}; selected {_format_value(float(row["Selected match"]), metric)}; '
             f'normal {_format_value(float(row["Other-match average"]), metric)}; '
@@ -72,7 +82,7 @@ def render_match_comparison_svg(
         )
         cells.append(
             f'<rect x="{x:.2f}" y="{y:.2f}" width="{cell_width:.2f}" height="{cell_height:.2f}" '
-            f'fill="{_difference_color(difference, maximum)}" '
+            f'fill="{_difference_color(difference, maximum, invert_colors)}" '
             'stroke="rgba(255,255,255,0.06)" stroke-width="0.12"/>'
         )
         hover_targets.append(
@@ -80,7 +90,7 @@ def render_match_comparison_svg(
             f'<rect class="heatmap-zone" x="{x:.2f}" y="{y:.2f}" width="{cell_width:.2f}" '
             f'height="{cell_height:.2f}" fill="transparent" pointer-events="all" tabindex="0" '
             f'role="graphics-symbol" aria-label="{escape(aria)}"><title>{escape(aria)}</title></rect>'
-            f'{_tooltip_svg(row, metric)}'
+            f'{_tooltip_svg(tooltip_row, metric)}'
             '</g>'
         )
 
@@ -89,6 +99,27 @@ def render_match_comparison_svg(
         f'Match {_format_value(summary["selected_total"], metric)} · '
         f'Other-match average {_format_value(summary["normal_total"], metric)} · '
         f'Difference {_format_value(summary["difference"], metric, signed=True)}'
+    )
+    arrow_path = "M62 63 L44 63" if reverse_direction else "M43 63 L61 63"
+    marker_id = "match-comparison-arrow-left" if reverse_direction else "match-comparison-arrow-right"
+    direction_label = (
+        '<div class="comparison-direction"><span>Freiburg defence / goal</span>'
+        '<span>Opponent attack starts here</span></div>'
+        if reverse_direction
+        else ""
+    )
+    legend = (
+        '<div class="comparison-legend">'
+        '<span>Better defence</span><i class="comparison-positive"></i><i class="comparison-neutral"></i>'
+        '<i class="comparison-negative"></i><span>Worse defence</span>'
+        '</div>'
+        if invert_colors
+        else (
+            '<div class="comparison-legend">'
+            '<span>Below normal</span><i class="comparison-negative"></i><i class="comparison-neutral"></i>'
+            '<i class="comparison-positive"></i><span>Above normal</span>'
+            '</div>'
+        )
     )
     return (
         '<div class="season-heatmap">'
@@ -101,14 +132,13 @@ def render_match_comparison_svg(
         '<circle cx="52.5" cy="34" r="9.15" fill="none" stroke="rgba(255,255,255,0.52)" stroke-width="0.38"/>'
         '<rect x="0.8" y="13.84" width="16.5" height="40.32" fill="none" stroke="rgba(255,255,255,0.52)" stroke-width="0.38"/>'
         '<rect x="87.7" y="13.84" width="16.5" height="40.32" fill="none" stroke="rgba(255,255,255,0.52)" stroke-width="0.38"/>'
-        '<path d="M43 63 L61 63" stroke="rgba(255,255,255,0.82)" stroke-width="0.65" marker-end="url(#match-comparison-arrow)"/>'
-        '<defs><marker id="match-comparison-arrow" markerWidth="4" markerHeight="4" refX="3.6" refY="2" orient="auto">'
+        f'<path d="{arrow_path}" stroke="rgba(255,255,255,0.82)" stroke-width="0.65" '
+        f'marker-end="url(#{marker_id})"/>'
+        f'<defs><marker id="{marker_id}" markerWidth="4" markerHeight="4" refX="3.6" refY="2" orient="auto">'
         '<path d="M0,0 L4,2 L0,4 Z" fill="rgba(255,255,255,0.82)"/></marker></defs>'
         f'{"".join(hover_targets)}'
         '</svg>'
-        '<div class="comparison-legend">'
-        '<span>Below normal</span><i class="comparison-negative"></i><i class="comparison-neutral"></i>'
-        '<i class="comparison-positive"></i><span>Above normal</span>'
-        '</div>'
+        f'{direction_label}'
+        f'{legend}'
         '</div>'
     )

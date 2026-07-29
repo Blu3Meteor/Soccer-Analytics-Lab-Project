@@ -774,6 +774,7 @@ def render_match_details_page(
     freiburg_id: int,
     squads_by_id: dict[int, dict[str, Any]],
     players_by_id: dict[int, dict[str, Any]],
+    matches: list[dict[str, Any]],
 ) -> None:
     selected_match = _selected_match_from_details_selector(summaries, selected_index)
     match_id = int(selected_match["id"])
@@ -947,11 +948,18 @@ def render_match_details_page(
         render_match_heatmap_scaffold(summaries, selected_match, freiburg_id)
 
     elif section == "Lineups":
+        from .player_rankings import build_player_rank_lookup
+
+        player_ranks = build_player_rank_lookup(
+            tuple(int(match["id"]) for match in matches),
+            squads_by_id,
+            players_by_id,
+        )
         lineup_columns = st.columns(2)
         with lineup_columns[0]:
-            render_lineup_panel(home_name, lineup_for_team(lineups, home_id), players_by_id)
+            render_lineup_panel(home_name, lineup_for_team(lineups, home_id), players_by_id, player_ranks)
         with lineup_columns[1]:
-            render_lineup_panel(away_name, lineup_for_team(lineups, away_id), players_by_id)
+            render_lineup_panel(away_name, lineup_for_team(lineups, away_id), players_by_id, player_ranks)
 
     elif section == "Event Data":
         st.markdown("**Goals**")

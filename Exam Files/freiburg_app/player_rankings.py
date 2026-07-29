@@ -125,6 +125,7 @@ RADAR_CONFIGS: dict[str, list[dict[str, Any]]] = {
         {"label": "Ball Security", "key": "Ball Security", "kind": "rate"},
     ],
 }
+DEFAULT_MINIMUM_MINUTES = 450
 
 
 # AI-ASSISTED DATA EXTRACTION / PLAYER-EVENT PREPARATION
@@ -388,6 +389,39 @@ def _score_position_rows(rows: list[dict[str, Any]], position: str, minimum_minu
     return scored
 
 
+def build_player_rank_lookup(
+    match_ids: tuple[int, ...],
+    squads: dict[int, dict[str, Any]],
+    players: dict[int, dict[str, Any]],
+    minimum_minutes: int = DEFAULT_MINIMUM_MINUTES,
+) -> dict[tuple[int, int], dict[str, Any]]:
+    """Index league-wide position-group ranks for use in match lineups."""
+    all_rows = build_player_ranking_rows(match_ids, squads, players)
+    lookup = {
+        (int(row["Team ID"]), int(row["Player ID"])): {
+            "rank": None,
+            "total": 0,
+            "mean_percentile": None,
+            "position_group": row["Position Group"],
+            "minutes": float(row["Minutes"]),
+            "minimum_minutes": int(minimum_minutes),
+        }
+        for row in all_rows
+    }
+    for position in RADAR_CONFIGS:
+        scored = _score_position_rows(all_rows, position, minimum_minutes)
+        total = len(scored)
+        for row in scored:
+            lookup[(int(row["Team ID"]), int(row["Player ID"]))].update(
+                {
+                    "rank": int(row["Rank"]),
+                    "total": total,
+                    "mean_percentile": float(row["Mean Percentile Rank"]),
+                }
+            )
+    return lookup
+
+
 # AI-ASSISTED RADAR AND STREAMLIT PRESENTATION
 def _radar_svg(player: dict[str, Any], position: str) -> str:
     config = RADAR_CONFIGS[position]
@@ -478,7 +512,7 @@ def render_player_rankings_page(
         "are left as rates. The radar uses percentile ranks, so 100 is best in that position group and 0 is lowest."
     )
 
-    minimum_minutes = st.slider("Minimum minutes", 0, 2500, 450, 90)
+    minimum_minutes = st.slider("Minimum minutes", 0, 2500, DEFAULT_MINIMUM_MINUTES, 90)
     all_rows = build_player_ranking_rows(tuple(int(match["id"]) for match in matches), squads_by_id, players_by_id)
 
     tabs = st.tabs(["Forwards", "Midfield", "Defense", "GK"])

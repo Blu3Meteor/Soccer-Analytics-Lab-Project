@@ -226,6 +226,15 @@ CSS = """
     height: 9px;
 }
 
+.comparison-direction {
+    display: flex;
+    justify-content: space-between;
+    margin-top: -0.2rem;
+    color: var(--muted);
+    font-size: 0.66rem;
+    font-weight: 850;
+}
+
 .comparison-negative {
     background: rgba(56, 139, 253, 0.9);
     border-radius: 999px 0 0 999px;
@@ -849,6 +858,27 @@ div.stButton > button[kind="primary"] {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.player-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.18rem;
+    max-width: 92px;
+}
+
+.player-rank {
+    flex: 0 0 auto;
+    padding: 0.08rem 0.22rem;
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.94);
+    color: #15171a;
+    font-size: 0.58rem;
+    font-weight: 900;
+    line-height: 1;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
 .lineup-note {

@@ -56,7 +56,7 @@ def main() -> None:
     elif page == "Match Details":
         from .match_details import render_match_details_page
 
-        render_match_details_page(summaries, selected_index, freiburg_id, squads_by_id, players_by_id)
+        render_match_details_page(summaries, selected_index, freiburg_id, squads_by_id, players_by_id, matches)
     else:
         from .home import render_home_page
 
