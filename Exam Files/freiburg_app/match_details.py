@@ -443,6 +443,7 @@ def _shot_goal_options(
     squads: dict[int, dict[str, Any]],
 ) -> list[dict[str, Any]]:
     values_by_event = _event_pxt_values(events_kpis)
+    xg_by_event = shot_xg_by_event(events_kpis)
     rows = []
     for event in events:
         if event.get("actionType") not in {"SHOT", "GOAL", "OWN_GOAL"}:
@@ -457,10 +458,13 @@ def _shot_goal_options(
         )
         if not row:
             continue
+        shot_xg = xg_by_event.get(event_id)
+        row["xG"] = shot_xg
         result = f" · {row['Result']}" if row["Result"] else ""
+        xg_label = f"{float(shot_xg):.3f}" if shot_xg is not None else "n/a"
         row["Label"] = (
             f"{row['Time']} · {row['Team']} · {row['Player']} · "
-            f"{row['Action']}{result} · xT {float(row['xT']):.3f}"
+            f"{row['Action']}{result} · xG {xg_label} · xT {float(row['xT']):.3f}"
         )
         rows.append(row)
     rows.sort(key=lambda row: (row["second"], row["index"]))
@@ -917,11 +921,16 @@ def render_match_details_page(
             selected_shot = next(row for row in shot_goal_rows if int(row["event_id"]) == int(selected_event_id))
             build_up_rows = _build_up_rows(events, selected_event, events_kpis, players_by_id, squads_by_id)
 
-            metric_cols = st.columns(4)
+            metric_cols = st.columns(5)
             metric_cols[0].metric("Sequence Actions", len(build_up_rows))
             metric_cols[1].metric("Build-up xT", f"{sum(float(row['xT']) for row in build_up_rows):.3f}")
             metric_cols[2].metric("Selected xT", f"{float(selected_shot['xT']):.3f}")
-            metric_cols[3].metric("Player", selected_shot["Player"])
+            selected_xg = selected_shot.get("xG")
+            metric_cols[3].metric(
+                "Shot xG",
+                f"{float(selected_xg):.3f}" if selected_xg is not None else "—",
+            )
+            metric_cols[4].metric("Player", selected_shot["Player"])
 
             build_up_map = _render_build_up_map(
                 build_up_rows,
