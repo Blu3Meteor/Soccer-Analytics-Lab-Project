@@ -830,7 +830,19 @@ div.stButton > button[kind="primary"] {
     width: 76px;
     transform: translate(-50%, -50%);
     color: #ffffff;
+    outline: none;
     text-align: center;
+    z-index: 2;
+}
+
+.player-marker:hover,
+.player-marker:focus-visible {
+    z-index: 20;
+}
+
+.player-marker:focus-visible .player-shirt {
+    outline: 3px solid #ffffff;
+    outline-offset: 3px;
 }
 
 .player-shirt {
@@ -879,6 +891,110 @@ div.stButton > button[kind="primary"] {
     font-weight: 900;
     line-height: 1;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.player-tooltip {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 10px);
+    display: none;
+    width: 224px;
+    padding: 0.72rem 0.78rem;
+    transform: translateX(-50%);
+    border: 1px solid rgba(15, 23, 42, 0.14);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.98);
+    color: #15171a;
+    text-align: left;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
+    pointer-events: none;
+}
+
+.player-marker:hover .player-tooltip,
+.player-marker:focus-visible .player-tooltip {
+    display: grid;
+    gap: 0.16rem;
+}
+
+.tooltip-below .player-tooltip {
+    top: calc(100% + 10px);
+    bottom: auto;
+}
+
+.tooltip-align-left .player-tooltip {
+    transform: translateX(-18%);
+}
+
+.tooltip-align-right .player-tooltip {
+    transform: translateX(-82%);
+}
+
+.player-tooltip > strong {
+    color: #111827;
+    font-size: 0.88rem;
+    line-height: 1.2;
+}
+
+.player-tooltip > span {
+    color: #5f6772;
+    font-size: 0.68rem;
+    line-height: 1.35;
+}
+
+.player-tooltip .player-tooltip-rank {
+    margin-top: 0.32rem;
+    color: #15171a;
+    font-size: 0.74rem;
+    font-weight: 850;
+}
+
+.player-tooltip-subhead {
+    margin-top: 0.42rem;
+    color: #707784;
+    font-size: 0.61rem;
+    font-weight: 850;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.player-tooltip-stats {
+    display: grid;
+    gap: 0.22rem;
+    margin-top: 0.1rem;
+}
+
+.player-tooltip-stat {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: baseline;
+    gap: 0.32rem;
+    font-size: 0.65rem;
+}
+
+.player-tooltip-stat > span {
+    overflow: hidden;
+    color: #3f4650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.player-tooltip-stat > strong {
+    color: #15171a;
+    font-size: 0.65rem;
+}
+
+.player-tooltip-stat > em {
+    color: #c7152a;
+    font-size: 0.61rem;
+    font-style: normal;
+    font-weight: 800;
+}
+
+.player-tooltip-empty {
+    margin-top: 0.35rem;
+    color: #707784;
+    font-size: 0.66rem;
+    line-height: 1.35;
 }
 
 .lineup-note {

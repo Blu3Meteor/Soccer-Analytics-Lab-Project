@@ -86,7 +86,8 @@ def _player_short_name(player_id: int, players: dict[int, dict[str, Any]]) -> st
 
 
 # AI-ASSISTED SVG VISUALISATION
-def _pitch_background() -> str:
+def _pitch_background(attack_left_to_right: bool = True) -> str:
+    direction_path = "M43 63 L61 63" if attack_left_to_right else "M62 63 L44 63"
     return (
         '<rect x="0" y="0" width="105" height="68" rx="1.8" fill="#2f8f53"/>'
         '<rect x="0.8" y="0.8" width="103.4" height="66.4" fill="none" stroke="rgba(255,255,255,0.78)" stroke-width="0.6"/>'
@@ -98,11 +99,11 @@ def _pitch_background() -> str:
         '<rect x="0.8" y="24.84" width="5.5" height="18.32" fill="none" stroke="rgba(255,255,255,0.65)" stroke-width="0.45"/>'
         '<rect x="98.7" y="24.84" width="5.5" height="18.32" fill="none" stroke="rgba(255,255,255,0.65)" stroke-width="0.45"/>'
         '<text x="52.5" y="66" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="2.6">Attacking direction</text>'
-        '<path d="M43 63 L61 63" stroke="rgba(255,255,255,0.8)" stroke-width="0.6" marker-end="url(#arrow-soft)"/>'
+        f'<path d="{direction_path}" stroke="rgba(255,255,255,0.8)" stroke-width="0.6" marker-end="url(#arrow-soft)"/>'
     )
 
 
-def _svg_wrapper(inner: str) -> str:
+def _svg_wrapper(inner: str, attack_left_to_right: bool = True) -> str:
     return (
         '<div class="advanced-pitch">'
         '<svg viewBox="0 0 105 68" role="img" aria-label="Football pitch visualisation">'
@@ -120,7 +121,7 @@ def _svg_wrapper(inner: str) -> str:
         '<path d="M0,0 L4,2 L0,4 Z" fill="#27313f"/>'
         '</marker>'
         '</defs>'
-        f'{_pitch_background()}{inner}'
+        f'{_pitch_background(attack_left_to_right)}{inner}'
         '</svg>'
         '</div>'
     )
@@ -568,10 +569,16 @@ def _build_up_table_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 # AI-ASSISTED SHOT-BUILD-UP VISUALISATION
-def _render_build_up_map(rows: list[dict[str, Any]], players: dict[int, dict[str, Any]]) -> str:
+def _render_build_up_map(
+    rows: list[dict[str, Any]],
+    players: dict[int, dict[str, Any]],
+    attacking_team_id: int,
+    freiburg_id: int,
+) -> str:
     if not rows:
         return ""
 
+    attack_left_to_right = int(attacking_team_id) == int(freiburg_id)
     max_value = max((abs(float(row["xT"])) for row in rows), default=0.01) or 0.01
     arrows = []
     xt_labels = []
@@ -597,6 +604,9 @@ def _render_build_up_map(rows: list[dict[str, Any]], players: dict[int, dict[str
         start_y = float(row["start_y"])
         end_x = float(row["end_x"])
         end_y = float(row["end_y"])
+        if not attack_left_to_right:
+            start_x = PITCH_LENGTH - start_x
+            end_x = PITCH_LENGTH - end_x
         label = f"xT {value:+.3f}"
         label_width = max(9.0, len(label) * 1.05)
         label_x = clamp(((start_x + end_x) / 2) - (label_width / 2), 1.0, PITCH_LENGTH - label_width - 1.0)
@@ -660,7 +670,10 @@ def _render_build_up_map(rows: list[dict[str, Any]], players: dict[int, dict[str
         '<line x1="4" y1="11.4" x2="10" y2="11.4" stroke="#27313f" stroke-width="1" marker-end="url(#arrow-dark)"/>'
         '<text x="12" y="12.2" fill="#ffffff" font-size="2.1">neutral or negative</text>'
     )
-    return _svg_wrapper("".join(arrows + xt_labels + circles + step_markers) + legend)
+    return _svg_wrapper(
+        "".join(arrows + xt_labels + circles + step_markers) + legend,
+        attack_left_to_right=attack_left_to_right,
+    )
 
 
 def _event_table_rows(events: list[dict[str, Any]], players: dict[int, dict[str, Any]], squads: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:
@@ -910,7 +923,12 @@ def render_match_details_page(
             metric_cols[2].metric("Selected xT", f"{float(selected_shot['xT']):.3f}")
             metric_cols[3].metric("Player", selected_shot["Player"])
 
-            build_up_map = _render_build_up_map(build_up_rows, players_by_id)
+            build_up_map = _render_build_up_map(
+                build_up_rows,
+                players_by_id,
+                int(selected_shot["team_id"]),
+                freiburg_id,
+            )
             if build_up_map:
                 st.markdown(build_up_map, unsafe_allow_html=True)
                 st.dataframe(_build_up_table_rows(build_up_rows), hide_index=True, width="stretch")

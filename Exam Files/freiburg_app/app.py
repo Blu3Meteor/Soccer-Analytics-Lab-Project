@@ -60,4 +60,4 @@ def main() -> None:
     else:
         from .home import render_home_page
 
-        render_home_page(summaries, selected_index, freiburg_id, squads_by_id, players_by_id)
+        render_home_page(summaries, selected_index, freiburg_id, squads_by_id, players_by_id, matches)

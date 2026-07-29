@@ -50,6 +50,81 @@ def _rank_tooltip(rank_data: dict[str, Any] | None) -> str:
     )
 
 
+def _metric_value_label(metric: dict[str, Any]) -> str:
+    value = float(metric["value"])
+    if metric.get("is_rate"):
+        return f"{value:.1f}%"
+    return f"{value:.2f} /90"
+
+
+def _percentile_label(value: float) -> str:
+    percentile = int(round(value))
+    if 10 <= percentile % 100 <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(percentile % 10, "th")
+    return f"{percentile}{suffix} pct"
+
+
+def _player_tooltip_html(
+    full_name: str,
+    position: str,
+    rank_data: dict[str, Any] | None,
+) -> str:
+    if not rank_data:
+        return (
+            '<div class="player-tooltip" role="tooltip">'
+            f'<strong>{escape(full_name)}</strong>'
+            f'<span>{escape(position)}</span>'
+            '<div class="player-tooltip-empty">Season ranking data unavailable</div>'
+            "</div>"
+        )
+
+    minutes = float(rank_data["minutes"])
+    matches = int(rank_data.get("matches", 0))
+    if rank_data.get("rank") is None:
+        ranking = (
+            '<span class="player-tooltip-rank">Not ranked</span>'
+            f'<span>{minutes:.0f} min · {matches} apps</span>'
+            '<div class="player-tooltip-empty">'
+            f'{int(rank_data["minimum_minutes"])} minutes required for a ranking'
+            "</div>"
+        )
+    else:
+        ranking = (
+            '<span class="player-tooltip-rank">'
+            f'{escape(str(rank_data["position_group"]))} #{int(rank_data["rank"])} '
+            f'of {int(rank_data["total"])}'
+            "</span>"
+            f'<span>{float(rank_data["mean_percentile"]):.1f} overall percentile · '
+            f"{minutes:.0f} min · {matches} apps</span>"
+        )
+
+    metric_rows = []
+    for metric in rank_data.get("top_metrics", []):
+        metric_rows.append(
+            '<div class="player-tooltip-stat">'
+            f'<span>{escape(str(metric["label"]))}</span>'
+            f'<strong>{escape(_metric_value_label(metric))}</strong>'
+            f'<em>{_percentile_label(float(metric["percentile"]))}</em>'
+            "</div>"
+        )
+    metrics = ""
+    if metric_rows:
+        metrics = (
+            '<div class="player-tooltip-subhead">Top attributes</div>'
+            f'<div class="player-tooltip-stats">{"".join(metric_rows)}</div>'
+        )
+
+    return (
+        '<div class="player-tooltip" role="tooltip">'
+        f'<strong>{escape(full_name)}</strong>'
+        f'<span>{escape(position)}</span>'
+        f"{ranking}{metrics}"
+        "</div>"
+    )
+
+
 def lineup_for_team(lineups: dict[str, Any], team_id: int) -> dict[str, Any]:
     for key in ("squadHome", "squadAway"):
         squad = lineups.get(key, {})
@@ -175,18 +250,25 @@ def render_lineup_pitch(
         short_name = player_display_name(player_id, players)
         rank_data = _player_rank(lineup, player_id, player_ranks)
         rank_label = _rank_label(rank_data)
-        tooltip = (
-            f"{full_name} · {format_position(marker['position'])} · "
-            f"{_rank_tooltip(rank_data)}"
-        )
+        position = format_position(marker["position"])
+        tooltip = _player_tooltip_html(full_name, position, rank_data)
+        tooltip_vertical = " tooltip-below" if marker["y"] < 35 else ""
+        if marker["x"] < 30:
+            tooltip_horizontal = " tooltip-align-left"
+        elif marker["x"] > 70:
+            tooltip_horizontal = " tooltip-align-right"
+        else:
+            tooltip_horizontal = ""
         markers.append(
-            f'<div class="player-marker" style="left: {marker["x"]:.1f}%; top: {marker["y"]:.1f}%;" '
-            f'title="{escape(tooltip)}">'
+            f'<div class="player-marker{tooltip_vertical}{tooltip_horizontal}" '
+            f'style="left: {marker["x"]:.1f}%; top: {marker["y"]:.1f}%;" '
+            f'tabindex="0" aria-label="{escape(_rank_tooltip(rank_data))}">'
             f'<div class="player-shirt" style="background: {color};">{escape(str(shirt))}</div>'
             '<div class="player-label-row">'
             f'<div class="player-name">{escape(short_name)}</div>'
             f'<span class="player-rank">{escape(rank_label)}</span>'
             '</div>'
+            f"{tooltip}"
             '</div>'
         )
 
@@ -287,7 +369,8 @@ def render_lineup_panel(
     st.markdown(f"**{title} · {formation}**")
     render_lineup_pitch(title, lineup, players, player_ranks)
     st.markdown(
-        '<div class="lineup-note">Badge shows league-wide position-group rank · NR means below 450 minutes.</div>',
+        '<div class="lineup-note">Hover or focus a player for season details · '
+        'Badge shows league-wide position-group rank · NR means below 450 minutes.</div>',
         unsafe_allow_html=True,
     )
     with st.expander("Starting XI", expanded=False):

@@ -404,7 +404,9 @@ def build_player_rank_lookup(
             "mean_percentile": None,
             "position_group": row["Position Group"],
             "minutes": float(row["Minutes"]),
+            "matches": int(row["Matches"]),
             "minimum_minutes": int(minimum_minutes),
+            "top_metrics": [],
         }
         for row in all_rows
     }
@@ -412,11 +414,24 @@ def build_player_rank_lookup(
         scored = _score_position_rows(all_rows, position, minimum_minutes)
         total = len(scored)
         for row in scored:
+            metric_summaries = [
+                {
+                    "label": metric["label"],
+                    "value": float(row[f"{metric['label']} Value"]),
+                    "percentile": float(row[f"{metric['label']} Score"]),
+                    "is_rate": metric.get("kind") == "rate",
+                }
+                for metric in RADAR_CONFIGS[position]
+            ]
+            metric_summaries.sort(
+                key=lambda metric: (-float(metric["percentile"]), str(metric["label"]))
+            )
             lookup[(int(row["Team ID"]), int(row["Player ID"]))].update(
                 {
                     "rank": int(row["Rank"]),
                     "total": total,
                     "mean_percentile": float(row["Mean Percentile Rank"]),
+                    "top_metrics": metric_summaries[:3],
                 }
             )
     return lookup

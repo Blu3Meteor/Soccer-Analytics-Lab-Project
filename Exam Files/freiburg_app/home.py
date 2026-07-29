@@ -31,6 +31,7 @@ def render_home_page(
     freiburg_id: int,
     squads_by_id: dict[int, dict[str, Any]],
     players_by_id: dict[int, dict[str, Any]],
+    matches: list[dict[str, Any]],
 ) -> None:
     record = season_record(summaries)
     points_chart_data = points_progression(summaries)
@@ -93,11 +94,28 @@ def render_home_page(
                 st.caption("No goals recorded.")
 
         with lineup_tab:
+            from .player_rankings import build_player_rank_lookup
+
+            player_ranks = build_player_rank_lookup(
+                tuple(int(match["id"]) for match in matches),
+                squads_by_id,
+                players_by_id,
+            )
             lineup_columns = st.columns(2)
             with lineup_columns[0]:
-                render_lineup_panel(home_name, lineup_for_team(lineups, home_id), players_by_id)
+                render_lineup_panel(
+                    home_name,
+                    lineup_for_team(lineups, home_id),
+                    players_by_id,
+                    player_ranks,
+                )
             with lineup_columns[1]:
-                render_lineup_panel(away_name, lineup_for_team(lineups, away_id), players_by_id)
+                render_lineup_panel(
+                    away_name,
+                    lineup_for_team(lineups, away_id),
+                    players_by_id,
+                    player_ranks,
+                )
 
         with stats_tab:
             render_stat_comparison(rows, home_short, away_short)
