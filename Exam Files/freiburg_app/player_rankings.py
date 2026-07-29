@@ -496,17 +496,17 @@ def _radar_svg(player: dict[str, Any], position: str) -> str:
     )
 
 
-def _render_position_table(position: str, rows: list[dict[str, Any]], freiburg_id: int) -> None:
-    freiburg_rows = [row for row in rows if int(row["Team ID"]) == int(freiburg_id)]
+def _render_position_table(position: str, rows: list[dict[str, Any]], team_id: int) -> None:
+    team_rows = [row for row in rows if int(row["Team ID"]) == int(team_id)]
     display_columns = ["Rank", "Player", "Team", "Minutes", "Mean Percentile Rank"] + [
         f"{metric['label']} Score" for metric in RADAR_CONFIGS[position]
     ]
     st.dataframe(
-        [{column: row.get(column, "") for column in display_columns} for row in freiburg_rows],
+        [{column: row.get(column, "") for column in display_columns} for row in team_rows],
         hide_index=True,
         width="stretch",
     )
-    for row in freiburg_rows:
+    for row in team_rows:
         with st.expander(f"{row['Player']} radar · {float(row['Mean Percentile Rank']):.1f} mean rank"):
             st.markdown(_radar_svg(row, position), unsafe_allow_html=True)
 
@@ -527,12 +527,35 @@ def render_player_rankings_page(
         "are left as rates. The radar uses percentile ranks, so 100 is best in that position group and 0 is lowest."
     )
 
-    minimum_minutes = st.slider("Minimum minutes", 0, 2500, DEFAULT_MINIMUM_MINUTES, 90)
+    team_options = sorted(
+        squads_by_id,
+        key=lambda team_id: team_name(int(team_id), squads_by_id).casefold(),
+    )
+    default_team_index = team_options.index(freiburg_id) if freiburg_id in team_options else 0
+    filter_columns = st.columns([0.58, 0.42])
+    with filter_columns[0]:
+        selected_team_id = st.selectbox(
+            "Team",
+            team_options,
+            index=default_team_index,
+            format_func=lambda team_id: team_name(int(team_id), squads_by_id),
+            key="player_rankings_team",
+        )
+    with filter_columns[1]:
+        minimum_minutes = st.slider(
+            "Minimum minutes",
+            0,
+            2500,
+            DEFAULT_MINIMUM_MINUTES,
+            90,
+        )
+
     all_rows = build_player_ranking_rows(tuple(int(match["id"]) for match in matches), squads_by_id, players_by_id)
+    selected_team_name = team_name(int(selected_team_id), squads_by_id)
 
     tabs = st.tabs(["Forwards", "Midfield", "Defense", "GK"])
     for tab, position in zip(tabs, ["Forwards", "Midfield", "Defense", "GK"]):
         with tab:
             scored = _score_position_rows(all_rows, position, minimum_minutes)
-            st.markdown(f"**{position} · Freiburg Players**")
-            _render_position_table(position, scored, freiburg_id)
+            st.markdown(f"**{position} · {selected_team_name} players**")
+            _render_position_table(position, scored, int(selected_team_id))
