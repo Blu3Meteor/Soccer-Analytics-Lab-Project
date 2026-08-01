@@ -76,6 +76,7 @@ def short_team_name(name: str) -> str:
 
 
 def team_code(name: str) -> str:
+    """Return official code if exists, otherwise return the first 3 letters (e.g. "1. FC Union Berlin" becomes "FCU" regardless)"""
     replacements = {
         "Bayer 04 Leverkusen": "B04",
         "FC Bayern München": "FCB",
