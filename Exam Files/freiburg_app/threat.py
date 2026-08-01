@@ -45,6 +45,8 @@ def _position_group(position: str | None) -> str:
     value = position or ""
     if "GOALKEEPER" in value:
         return "GK"
+    if "WINGBACK" in value:
+        return "Wingbacks"
     if "FORWARD" in value or "WINGER" in value:
         return "Attack"
     if "MIDFIELD" in value:

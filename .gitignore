@@ -5,7 +5,9 @@ Reference Github
 Exam Data
 
 Exam Files/exam
+Exam Files/freiburg_app/__pycache__/
 
 # Python runtime artifacts
 __pycache__/
 *.py[cod]
+
