@@ -1,9 +1,3 @@
-# PROVENANCE: MIXED MODULE — SEE CODE_PROVENANCE.md
-# AI-assisted data preparation and SVG/Streamlit plots are mixed with passing-
-# network and xT calculations whose authorship must be verified independently.
-
-from __future__ import annotations
-
 from collections import defaultdict
 from html import escape
 from typing import Any
@@ -11,15 +5,7 @@ from typing import Any
 import streamlit as st
 
 from .components import query_param_value, render_scoreboard
-from .config import (
-    KPI_PXT_BALL_WIN,
-    KPI_PXT_BLOCK,
-    KPI_PXT_DRIBBLE,
-    KPI_PXT_FOUL,
-    KPI_PXT_PASS,
-    KPI_PXT_SETPIECE,
-    KPI_PXT_SHOT,
-)
+from .config import TAGGED_ACTION_PXT_KPIS
 from .data import (
     compact_matchday,
     format_position,
@@ -29,6 +15,7 @@ from .data import (
     load_match_player_kpis,
     minute_label,
     player_name,
+    short_player_name,
     short_team_name,
     team_name,
 )
@@ -36,56 +23,49 @@ from .events import card_events, scoring_events, shot_events
 from .event_utils import PITCH_LENGTH, PITCH_WIDTH, clamp, event_player_id, event_team_id, event_xy
 from .lineups import lineup_for_team, render_lineup_panel
 from .match_heatmap_scaffold import render_match_heatmap_scaffold
-from .metrics import compute_stats, opposition_team, shot_xg_by_event, stat_rows
+from .metrics import (
+    PASS_ACCURACY_LABEL,
+    PASS_ACCURACY_NOTE,
+    compute_stats,
+    opposition_team,
+    shot_xg_by_event,
+    stat_rows,
+    total_pxt_by_team,
+)
 
 
-PXT_ACTION_KPIS = {
-    KPI_PXT_PASS: "Pass",
-    KPI_PXT_DRIBBLE: "Dribble",
-    KPI_PXT_SETPIECE: "Set Piece",
-    KPI_PXT_BLOCK: "Block",
-    KPI_PXT_SHOT: "Shot",
-    KPI_PXT_BALL_WIN: "Ball Win",
-    KPI_PXT_FOUL: "Foul",
-}
-
-
-# AI-ASSISTED DATA EXTRACTION / COORDINATE AND EVENT PREPARATION
-def _clock_seconds(value: dict[str, Any] | str | None) -> float:
-    if isinstance(value, dict):
-        raw = value.get("gameTime", "")
-    else:
-        raw = value or ""
-    if not raw:
-        return 0.0
-    main = raw.split()[0].split(".", 1)[0]
-    added_seconds = 0.0
-    if "+" in main:
-        main, added = main.split("+", 1)
-        try:
-            added_seconds = float(added.split(":", 1)[0]) * 60
-        except ValueError:
-            added_seconds = 0.0
-    parts = main.split(":")
+# Data Processing Assistance
+def _display_time_seconds(value: str) -> float:
+    parts = value.strip().split(":")
     try:
-        if len(parts) == 2:
-            return float(parts[0]) * 60 + float(parts[1]) + added_seconds
-        return float(parts[0]) + added_seconds
+        return sum(float(part) * (60 ** index) for index, part in enumerate(reversed(parts)))
     except ValueError:
         return 0.0
 
 
-def _player_short_name(player_id: int, players: dict[int, dict[str, Any]]) -> str:
-    name = player_name(player_id, players)
-    if len(name) <= 13:
-        return name
-    parts = name.split()
-    if len(parts) >= 2:
-        return f"{parts[0][0]}. {parts[-1]}"
-    return name[:12]
+def _timeline_seconds(value: dict[str, Any] | str | None) -> float:
+    if isinstance(value, dict):
+        # Preserve Impect's 0/10,000/... period offsets. Events and lineup
+        # changes use the same timeline, including distinct added-time values.
+        documented_seconds = value.get("gameTimeInSec")
+        if documented_seconds is not None:
+            try:
+                return float(documented_seconds)
+            except (TypeError, ValueError):
+                pass
+        display_time = str(value.get("gameTime") or "")
+    else:
+        display_time = str(value or "")
+    if not display_time:
+        return 0.0
 
+    main_time, marker, added_time = display_time.partition("(+")
+    seconds = _display_time_seconds(main_time)
+    if marker:
+        seconds += _display_time_seconds(added_time.rstrip(")"))
+    return seconds
 
-# AI-ASSISTED SVG VISUALISATION
+# UI Assistance
 def _pitch_background(attack_left_to_right: bool = True) -> str:
     direction_path = "M43 63 L61 63" if attack_left_to_right else "M62 63 L44 63"
     return (
@@ -127,34 +107,36 @@ def _svg_wrapper(inner: str, attack_left_to_right: bool = True) -> str:
     )
 
 
-# ANALYTICAL TRANSFORMATIONS — AUTHORSHIP TO VERIFY
-# This section defines tactical segments and passing-network measurements.
-def _freiburg_substitution_times(lineup: dict[str, Any]) -> list[tuple[float, str]]:
+# Data Processing Assistance
+# Mathematical reference: Soccermatics passing networks and centralisation
+# https://soccermatics.readthedocs.io/en/latest/gallery/lesson1/plot_PassNetworks.html
+# Lineup-change-window segmentation is an extra project extension.
+def _lineup_change_times(lineup: dict[str, Any]) -> list[tuple[float, str]]:
     by_second: dict[float, str] = {}
-    for substitution in lineup.get("substitutions", []):
-        game_time = substitution.get("gameTime")
-        second = _clock_seconds(game_time)
+    for change in lineup.get("substitutions", []):
+        game_time = change.get("gameTime")
+        second = _timeline_seconds(game_time)
         if second > 0:
             by_second[second] = minute_label(game_time)
     return sorted(by_second.items())
 
 
-def _match_segments(events: list[dict[str, Any]], lineup: dict[str, Any]) -> list[dict[str, Any]]:
-    cutoffs = _freiburg_substitution_times(lineup)
-    max_second = max((_clock_seconds(event.get("gameTime")) for event in events), default=0.0)
+def _lineup_change_windows(events: list[dict[str, Any]], lineup: dict[str, Any]) -> list[dict[str, Any]]:
+    cutoffs = _lineup_change_times(lineup)
+    max_second = max((_timeline_seconds(event.get("gameTime")) for event in events), default=0.0)
     boundaries = [(0.0, "0'")] + cutoffs + [(max_second + 1.0, "FT")]
-    segments = []
+    windows = []
     for index in range(len(boundaries) - 1):
         start_second, start_label = boundaries[index]
         end_second, end_label = boundaries[index + 1]
-        segments.append(
+        windows.append(
             {
                 "label": f"{start_label} to {end_label}",
                 "start": start_second,
                 "end": end_second,
             }
         )
-    return segments
+    return windows
 
 
 def _successful_team_passes(
@@ -173,7 +155,7 @@ def _successful_team_passes(
         receiver = (event.get("pass") or {}).get("receiver") or {}
         if receiver.get("type") != "TEAMMATE" or receiver.get("playerId") is None:
             continue
-        second = _clock_seconds(event.get("gameTime"))
+        second = _timeline_seconds(event.get("gameTime"))
         if start_second <= second < end_second:
             passes.append(event)
     return passes
@@ -234,7 +216,7 @@ def _pass_network_rows(
     return rows, edge_counts, centralisation
 
 
-# AI-ASSISTED PASS-NETWORK VISUALISATION
+# UI Assistance
 def _render_pass_network(
     passes: list[dict[str, Any]],
     players: dict[int, dict[str, Any]],
@@ -268,22 +250,24 @@ def _render_pass_network(
             'stroke="#ffffff" stroke-width="0.34"/>'
             f'<text x="{row["x"]:.2f}" y="{row["y"] - radius - 1.0:.2f}" text-anchor="middle" '
             'fill="#ffffff" font-size="1.85" font-weight="800">'
-            f'{escape(_player_short_name(int(row["player_id"]), players))}</text>'
+            f'{escape(short_player_name(int(row["player_id"]), players))}</text>'
         )
 
     return _svg_wrapper("".join(lines + markers)), rows, centralisation
 
 
-# AI-ASSISTED DATA EXTRACTION, FOLLOWED BY xT AGGREGATION REQUIRING REVIEW
+# Data Processing Assistance
+# These seven tagged-action PxT sources support action maps. They are not the
+# complete team PxT identity; full team PxT is calculated separately below.
 def _event_pxt_values(events_kpis: list[dict[str, Any]]) -> dict[int, dict[str, Any]]:
     values: dict[int, dict[str, Any]] = defaultdict(lambda: {"total": 0.0, "by_type": defaultdict(float)})
     for item in events_kpis:
         kpi_id = int(item.get("kpiId", -1))
-        if kpi_id not in PXT_ACTION_KPIS:
+        if kpi_id not in TAGGED_ACTION_PXT_KPIS:
             continue
         event_id = int(item["eventId"])
         value = float(item.get("value") or 0.0)
-        label = PXT_ACTION_KPIS[kpi_id]
+        label = TAGGED_ACTION_PXT_KPIS[kpi_id]
         values[event_id]["total"] += value
         values[event_id]["by_type"][label] += value
     return values
@@ -292,12 +276,12 @@ def _event_pxt_values(events_kpis: list[dict[str, Any]]) -> dict[int, dict[str, 
 def _event_sort_key(event: dict[str, Any]) -> tuple[int, float, int]:
     return (
         int(event.get("periodId") or 0),
-        _clock_seconds(event.get("gameTime")),
+        _timeline_seconds(event.get("gameTime")),
         int(event.get("index") or 0),
     )
 
 
-def _event_xt_row(
+def _event_action_pxt_row(
     event: dict[str, Any],
     value_data: dict[str, Any],
     players: dict[int, dict[str, Any]],
@@ -307,7 +291,7 @@ def _event_xt_row(
     event_id = int(event["id"])
     action_type = event.get("actionType") or ""
     value = float(value_data.get("total") or 0.0)
-    if not include_zero and abs(value) < 0.000001 and action_type not in {"SHOT", "GOAL", "OWN_GOAL"}:
+    if not include_zero and abs(value) < 0.000001 and action_type != "SHOT":
         return None
 
     start_xy = event_xy(event, "start")
@@ -324,7 +308,7 @@ def _event_xt_row(
         "event_id": event_id,
         "index": int(event.get("index") or 0),
         "Time": minute_label(event.get("gameTime")),
-        "second": _clock_seconds(event.get("gameTime")),
+        "second": _timeline_seconds(event.get("gameTime")),
         "team_id": team_id,
         "Team": short_team_name(team_name(team_id, squads)) if team_id is not None else "",
         "player_id": player_id if player_id is not None else -event_id,
@@ -332,7 +316,7 @@ def _event_xt_row(
         "Action": format_position(action_type),
         "Detail": format_position(event.get("action")),
         "Result": format_position(event.get("result")),
-        "xT": value,
+        "Action PxT": value,
         "Type": dominant_type,
         "start_x": start_xy[0],
         "start_y": start_xy[1],
@@ -341,7 +325,7 @@ def _event_xt_row(
     }
 
 
-def _match_xt_rows(
+def _match_action_pxt_rows(
     events: list[dict[str, Any]],
     events_kpis: list[dict[str, Any]],
     players: dict[int, dict[str, Any]],
@@ -357,14 +341,19 @@ def _match_xt_rows(
         if team_ids is not None and team_id not in team_ids:
             continue
         event_id = int(event["id"])
-        row = _event_xt_row(event, values_by_event.get(event_id, {"total": 0.0, "by_type": {}}), players, squads)
+        row = _event_action_pxt_row(
+            event,
+            values_by_event.get(event_id, {"total": 0.0, "by_type": {}}),
+            players,
+            squads,
+        )
         if row:
             rows.append(row)
-    rows.sort(key=lambda row: (-abs(float(row["xT"])), row["second"]))
+    rows.sort(key=lambda row: (-abs(float(row["Action PxT"])), row["second"]))
     return rows
 
 
-def _player_xt_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _player_action_pxt_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     summary: dict[tuple[int | None, int], dict[str, Any]] = {}
     for row in rows:
         player_id = int(row["player_id"])
@@ -374,23 +363,23 @@ def _player_xt_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "Team": row["Team"],
                 "Player": row["Player"],
                 "Actions": 0,
-                "Total xT": 0.0,
-                "Pass xT": 0.0,
-                "Shot xT": 0.0,
-                "Dribble xT": 0.0,
+                "Selected action PxT": 0.0,
+                "Pass PxT": 0.0,
+                "Shot PxT": 0.0,
+                "Dribble PxT": 0.0,
                 "Shots": 0,
             },
         )
-        value = float(row["xT"])
+        value = float(row["Action PxT"])
         player["Actions"] += 1
-        player["Total xT"] += value
-        if row["Action"] in {"Shot", "Goal", "Own Goal"}:
+        player["Selected action PxT"] += value
+        if row["Action"] == "Shot":
             player["Shots"] += 1
-            player["Shot xT"] += value
+            player["Shot PxT"] += value
         elif row["Type"] == "Pass":
-            player["Pass xT"] += value
+            player["Pass PxT"] += value
         elif row["Type"] == "Dribble":
-            player["Dribble xT"] += value
+            player["Dribble PxT"] += value
 
     output = []
     for player in summary.values():
@@ -400,17 +389,17 @@ def _player_xt_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "Player": player["Player"],
                 "Actions": player["Actions"],
                 "Shots": player["Shots"],
-                "Total xT": round(player["Total xT"], 4),
-                "Pass xT": round(player["Pass xT"], 4),
-                "Shot xT": round(player["Shot xT"], 4),
-                "Dribble xT": round(player["Dribble xT"], 4),
+                "Selected action PxT": round(player["Selected action PxT"], 4),
+                "Pass PxT": round(player["Pass PxT"], 4),
+                "Shot PxT": round(player["Shot PxT"], 4),
+                "Dribble PxT": round(player["Dribble PxT"], 4),
             }
         )
-    output.sort(key=lambda row: (-float(row["Total xT"]), row["Player"]))
+    output.sort(key=lambda row: (-float(row["Selected action PxT"]), row["Player"]))
     return output
 
 
-def _best_xt_player_by_team(rows: list[dict[str, Any]]) -> dict[int, str]:
+def _best_action_pxt_player_by_team(rows: list[dict[str, Any]]) -> dict[int, str]:
     summary: dict[tuple[int, int], dict[str, Any]] = {}
     for row in rows:
         team_id = row.get("team_id")
@@ -419,24 +408,24 @@ def _best_xt_player_by_team(rows: list[dict[str, Any]]) -> dict[int, str]:
         player_id = int(row["player_id"])
         player = summary.setdefault(
             (int(team_id), player_id),
-            {"team_id": int(team_id), "Player": row["Player"], "Total xT": 0.0},
+            {"team_id": int(team_id), "Player": row["Player"], "Selected action PxT": 0.0},
         )
-        player["Total xT"] += float(row["xT"])
+        player["Selected action PxT"] += float(row["Action PxT"])
 
     best_by_team: dict[int, dict[str, Any]] = {}
     for player in summary.values():
         team_id = int(player["team_id"])
         current = best_by_team.get(team_id)
-        if current is None or float(player["Total xT"]) > float(current["Total xT"]):
+        if current is None or float(player["Selected action PxT"]) > float(current["Selected action PxT"]):
             best_by_team[team_id] = player
 
     return {
-        team_id: f'{player["Player"]} ({float(player["Total xT"]):.3f})'
+        team_id: f'{player["Player"]} ({float(player["Selected action PxT"]):.3f})'
         for team_id, player in best_by_team.items()
     }
 
 
-def _shot_goal_options(
+def _shot_options(
     events: list[dict[str, Any]],
     events_kpis: list[dict[str, Any]],
     players: dict[int, dict[str, Any]],
@@ -446,10 +435,10 @@ def _shot_goal_options(
     xg_by_event = shot_xg_by_event(events_kpis)
     rows = []
     for event in events:
-        if event.get("actionType") not in {"SHOT", "GOAL", "OWN_GOAL"}:
+        if event.get("actionType") != "SHOT":
             continue
         event_id = int(event["id"])
-        row = _event_xt_row(
+        row = _event_action_pxt_row(
             event,
             values_by_event.get(event_id, {"total": 0.0, "by_type": {}}),
             players,
@@ -464,7 +453,7 @@ def _shot_goal_options(
         xg_label = f"{float(shot_xg):.3f}" if shot_xg is not None else "n/a"
         row["Label"] = (
             f"{row['Time']} · {row['Team']} · {row['Player']} · "
-            f"{row['Action']}{result} · xG {xg_label} · xT {float(row['xT']):.3f}"
+            f"{row['Action']}{result} · xG {xg_label} · action PxT {float(row['Action PxT']):.3f}"
         )
         rows.append(row)
     rows.sort(key=lambda row: (row["second"], row["index"]))
@@ -526,7 +515,7 @@ def _build_up_rows(
     rows = []
     for event in candidates:
         event_id = int(event["id"])
-        row = _event_xt_row(
+        row = _event_action_pxt_row(
             event,
             values_by_event.get(event_id, {"total": 0.0, "by_type": {}}),
             players,
@@ -535,13 +524,17 @@ def _build_up_rows(
         )
         if not row:
             continue
-        if event_id != target_id and event_xy(event, "end") is None and abs(float(row["xT"])) < 0.000001:
+        if (
+            event_id != target_id
+            and event_xy(event, "end") is None
+            and abs(float(row["Action PxT"])) < 0.000001
+        ):
             continue
         row["is_target"] = event_id == target_id
         rows.append(row)
 
     if not any(row["event_id"] == target_id for row in rows):
-        target_row = _event_xt_row(
+        target_row = _event_action_pxt_row(
             target_event,
             values_by_event.get(target_id, {"total": 0.0, "by_type": {}}),
             players,
@@ -566,13 +559,13 @@ def _build_up_table_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "Action": row["Action"],
             "Detail": row["Detail"],
             "Result": row["Result"],
-            "xT": round(float(row["xT"]), 5),
+            "Action PxT": round(float(row["Action PxT"]), 5),
         }
         for index, row in enumerate(rows, start=1)
     ]
 
 
-# AI-ASSISTED SHOT-BUILD-UP VISUALISATION
+# UI Assistance
 def _render_build_up_map(
     rows: list[dict[str, Any]],
     players: dict[int, dict[str, Any]],
@@ -583,13 +576,13 @@ def _render_build_up_map(
         return ""
 
     attack_left_to_right = int(attacking_team_id) == int(freiburg_id)
-    max_value = max((abs(float(row["xT"])) for row in rows), default=0.01) or 0.01
+    max_value = max((abs(float(row["Action PxT"])) for row in rows), default=0.01) or 0.01
     arrows = []
-    xt_labels = []
+    pxt_labels = []
     step_markers = []
     player_locations: dict[int, dict[str, Any]] = {}
     for index, row in enumerate(rows, start=1):
-        value = float(row["xT"])
+        value = float(row["Action PxT"])
         is_target = bool(row.get("is_target"))
         if is_target:
             color = "#c7152a"
@@ -611,7 +604,7 @@ def _render_build_up_map(
         if not attack_left_to_right:
             start_x = PITCH_LENGTH - start_x
             end_x = PITCH_LENGTH - end_x
-        label = f"xT {value:+.3f}"
+        label = f"PxT {value:+.3f}"
         label_width = max(9.0, len(label) * 1.05)
         label_x = clamp(((start_x + end_x) / 2) - (label_width / 2), 1.0, PITCH_LENGTH - label_width - 1.0)
         label_y = clamp(((start_y + end_y) / 2) - 4.2, 1.0, PITCH_WIDTH - 4.4)
@@ -626,7 +619,7 @@ def _render_build_up_map(
                 f'x2="{end_x:.2f}" y2="{end_y:.2f}" stroke="{color}" '
                 f'stroke-width="{width:.2f}" opacity="{opacity:.2f}" marker-end="url(#{marker})"/>'
             )
-        xt_labels.append(
+        pxt_labels.append(
             f'<rect x="{label_x:.2f}" y="{label_y:.2f}" width="{label_width:.2f}" height="3.6" '
             'rx="0.7" fill="rgba(21,23,26,0.76)" stroke="rgba(255,255,255,0.42)" stroke-width="0.18"/>'
             f'<text x="{label_x + label_width / 2:.2f}" y="{label_y + 2.55:.2f}" text-anchor="middle" '
@@ -668,47 +661,55 @@ def _render_build_up_map(
     legend = (
         '<rect x="2" y="2" width="42" height="11.5" rx="1.2" fill="rgba(21,23,26,0.72)"/>'
         '<line x1="4" y1="5" x2="10" y2="5" stroke="#1f4d78" stroke-width="1" marker-end="url(#arrow-blue)"/>'
-        '<text x="12" y="5.8" fill="#ffffff" font-size="2.1">positive build-up xT</text>'
+        '<text x="12" y="5.8" fill="#ffffff" font-size="2.1">positive action PxT</text>'
         '<line x1="4" y1="8.2" x2="10" y2="8.2" stroke="#c7152a" stroke-width="1" marker-end="url(#arrow-red)"/>'
-        '<text x="12" y="9" fill="#ffffff" font-size="2.1">selected shot / goal</text>'
+        '<text x="12" y="9" fill="#ffffff" font-size="2.1">selected shot</text>'
         '<line x1="4" y1="11.4" x2="10" y2="11.4" stroke="#27313f" stroke-width="1" marker-end="url(#arrow-dark)"/>'
         '<text x="12" y="12.2" fill="#ffffff" font-size="2.1">neutral or negative</text>'
     )
     return _svg_wrapper(
-        "".join(arrows + xt_labels + circles + step_markers) + legend,
+        "".join(arrows + pxt_labels + circles + step_markers) + legend,
         attack_left_to_right=attack_left_to_right,
     )
 
 
+# Data Processing Assistance
 def _event_table_rows(events: list[dict[str, Any]], players: dict[int, dict[str, Any]], squads: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:
     rows = []
     for event in events:
         player_id = (event.get("player") or {}).get("id")
         squad_id = event.get("squadId")
+        attacking_squad_id = event.get("currentAttackingSquadId")
         rows.append(
             {
                 "Index": event.get("index"),
                 "Time": minute_label(event.get("gameTime")),
-                "Team": short_team_name(team_name(int(squad_id), squads)) if squad_id is not None else "",
+                "Tagged player's team": short_team_name(team_name(int(squad_id), squads)) if squad_id is not None else "",
+                "Current attacking team": (
+                    short_team_name(team_name(int(attacking_squad_id), squads))
+                    if attacking_squad_id is not None
+                    else ""
+                ),
                 "Player": player_name(player_id, players),
                 "Action Type": format_position(event.get("actionType")),
                 "Action": format_position(event.get("action")),
                 "Result": format_position(event.get("result")),
                 "Phase": format_position(event.get("phase")),
                 "Pressure": event.get("pressure"),
-                "Team pxT": (event.get("pxT") or {}).get("team"),
-                "Opponent pxT": (event.get("pxT") or {}).get("opponent"),
+                "On-ball team PxT state": (event.get("pxT") or {}).get("team"),
+                "Off-ball team PxT state": (event.get("pxT") or {}).get("opponent"),
             }
         )
     return rows
 
 
+# UI Assistance
 def _detail_section_selector(match_id: int, sections: list[str]) -> str:
     key = f"match_details_section_{match_id}"
     detail_aliases = {
         "overview": "Overview",
         "passing_networks": "Passing Networks",
-        "shot_build_up": "Shot Build-up xT",
+        "shot_build_up": "Shot build-up PxT",
         "match_heatmaps": "Match Heatmaps",
         "lineups": "Lineups",
         "event_data": "Event Data",
@@ -727,27 +728,17 @@ def _detail_section_selector(match_id: int, sections: list[str]) -> str:
         st.session_state[key] = sections[0]
 
     def sync_detail_query() -> None:
-        if hasattr(st, "query_params"):
-            selected_section = st.session_state.get(key, sections[0])
-            st.query_params["detail"] = section_slugs.get(selected_section, "overview")
+        selected_section = st.session_state.get(key, sections[0])
+        st.query_params["detail"] = section_slugs.get(selected_section, "overview")
 
-    if hasattr(st, "segmented_control"):
-        selected = st.segmented_control(
-            "Match detail section",
-            sections,
-            key=key,
-            label_visibility="collapsed",
-            width="stretch",
-            on_change=sync_detail_query,
-        )
-    else:
-        selected = st.radio(
-            "Match detail section",
-            sections,
-            key=key,
-            horizontal=True,
-            label_visibility="collapsed",
-        )
+    selected = st.segmented_control(
+        "Match detail section",
+        sections,
+        key=key,
+        label_visibility="collapsed",
+        width="stretch",
+        on_change=sync_detail_query,
+    )
     return selected or st.session_state[key]
 
 
@@ -764,27 +755,25 @@ def _selected_match_from_details_selector(
     selected_index: int,
 ) -> dict[str, Any]:
     match_ids = [int(match["id"]) for match in summaries]
+    matches_by_id = {int(match["id"]): match for match in summaries}
     selected_index = min(max(selected_index, 0), len(summaries) - 1)
     selected_id = int(summaries[selected_index]["id"])
     chosen_id = st.selectbox(
         "Select match",
         match_ids,
         index=match_ids.index(selected_id),
-        format_func=lambda match_id: _match_option_label(next(match for match in summaries if int(match["id"]) == int(match_id))),
+        format_func=lambda match_id: _match_option_label(matches_by_id[int(match_id)]),
     )
     chosen_index = match_ids.index(int(chosen_id))
     if chosen_index != selected_index:
         st.session_state.selected_match_index = chosen_index
-        if hasattr(st, "query_params"):
-            st.query_params["page"] = "match_details"
-            st.query_params["match_id"] = str(chosen_id)
-        else:
-            st.experimental_set_query_params(page="match_details", match_id=str(chosen_id))
+        st.query_params["page"] = "match_details"
+        st.query_params["match_id"] = str(chosen_id)
         st.rerun()
     return summaries[chosen_index]
 
 
-# AI-ASSISTED STREAMLIT PAGE PRESENTATION
+# UI Assistance
 def render_match_details_page(
     summaries: list[dict[str, Any]],
     selected_index: int,
@@ -820,32 +809,39 @@ def render_match_details_page(
     stats = compute_stats(selected_match, events, player_kpis, events_kpis)
     opponent_id = opposition_team(selected_match, freiburg_id)
     goals = scoring_events(events, selected_match, players_by_id, squads_by_id)
-    match_xt_rows = _match_xt_rows(events, events_kpis, players_by_id, squads_by_id, {home_id, away_id})
-    freiburg_xt_total = sum(float(row["xT"]) for row in match_xt_rows if row.get("team_id") == freiburg_id)
-    player_xt_rows = _player_xt_summary(match_xt_rows)
-    shot_goal_rows = _shot_goal_options(events, events_kpis, players_by_id, squads_by_id)
+    match_action_pxt_rows = _match_action_pxt_rows(
+        events,
+        events_kpis,
+        players_by_id,
+        squads_by_id,
+        {home_id, away_id},
+    )
+    team_total_pxt = total_pxt_by_team(events, events_kpis, (home_id, away_id))
+    player_action_pxt_rows = _player_action_pxt_summary(match_action_pxt_rows)
+    shot_rows = _shot_options(events, events_kpis, players_by_id, squads_by_id)
     events_by_id = {int(event["id"]): event for event in events}
 
     section = _detail_section_selector(
         match_id,
-        ["Overview", "Passing Networks", "Shot Build-up xT", "Match Heatmaps", "Lineups", "Event Data"],
+        ["Overview", "Passing Networks", "Shot build-up PxT", "Match Heatmaps", "Lineups", "Event Data"],
     )
 
     if section == "Overview":
         metric_cols = st.columns(4)
-        metric_cols[0].metric("Freiburg Total xT", f"{freiburg_xt_total:.3f}")
+        metric_cols[0].metric("Freiburg total PxT", f"{team_total_pxt.get(freiburg_id, 0.0):.3f}")
         metric_cols[1].metric("Freiburg Shots", int(stats[freiburg_id]["shots"]))
-        metric_cols[2].metric("Pass Accuracy", f"{stats[freiburg_id]['pass_accuracy']:.1f}%")
+        metric_cols[2].metric(PASS_ACCURACY_LABEL, f"{stats[freiburg_id]['pass_accuracy']:.1f}%")
         metric_cols[3].metric("Opponent", short_team_name(team_name(opponent_id, squads_by_id)))
+        st.caption(PASS_ACCURACY_NOTE)
 
         st.markdown("**Match Stats**")
         overview_stat_rows = stat_rows(stats, home_id, away_id, home_name, away_name)
-        best_xt_players = _best_xt_player_by_team(match_xt_rows)
+        best_action_pxt_players = _best_action_pxt_player_by_team(match_action_pxt_rows)
         overview_stat_rows.append(
             {
-                "Stat": "xT (Best Player)",
-                short_team_name(home_name): best_xt_players.get(home_id, "-"),
-                short_team_name(away_name): best_xt_players.get(away_id, "-"),
+                "Stat": "Selected action PxT (best player)",
+                short_team_name(home_name): best_action_pxt_players.get(home_id, "-"),
+                short_team_name(away_name): best_action_pxt_players.get(away_id, "-"),
             }
         )
         st.dataframe(
@@ -860,8 +856,10 @@ def render_match_details_page(
             st.caption("No goals recorded.")
 
     elif section == "Passing Networks":
-        st.markdown("**Segmented Passing Networks**")
-        st.caption("Successful teammate passes, split from initial lineup to first substitution, then between each substitution window.")
+        st.markdown("**Passing Networks by Lineup-Change Window**")
+        st.caption(
+            "Successful teammate passes split at every recorded bench, position, side, or tactical lineup change."
+        )
         network_columns = st.columns(2)
         for column, team_id, team_label in (
             (network_columns[0], home_id, home_name),
@@ -870,16 +868,16 @@ def render_match_details_page(
             with column:
                 st.markdown(f"**{short_team_name(team_label)}**")
                 team_lineup = lineup_for_team(lineups, team_id)
-                segments = _match_segments(events, team_lineup)
-                segment_labels = [segment["label"] for segment in segments]
-                selected_segment_label = st.selectbox(
-                    "Segment",
-                    segment_labels,
-                    key=f"network_segment_{match_id}_{team_id}",
+                windows = _lineup_change_windows(events, team_lineup)
+                window_labels = [window["label"] for window in windows]
+                selected_window_label = st.selectbox(
+                    "Lineup-change window",
+                    window_labels,
+                    key=f"network_window_{match_id}_{team_id}",
                     label_visibility="collapsed",
                 )
-                selected_segment = segments[segment_labels.index(selected_segment_label)]
-                passes = _successful_team_passes(events, team_id, selected_segment["start"], selected_segment["end"])
+                selected_window = windows[window_labels.index(selected_window_label)]
+                passes = _successful_team_passes(events, team_id, selected_window["start"], selected_window["end"])
                 network_html, network_rows, centralisation = _render_pass_network(passes, players_by_id)
 
                 metric_cols = st.columns(2)
@@ -906,25 +904,29 @@ def render_match_details_page(
                             width="stretch",
                         )
                 else:
-                    st.caption("No successful teammate passes in this segment.")
+                    st.caption("No successful teammate passes in this lineup-change window.")
 
-    elif section == "Shot Build-up xT":
-        st.markdown("**Shot and Goal Build-up**")
-        if shot_goal_rows:
-            shot_labels = {int(row["event_id"]): row["Label"] for row in shot_goal_rows}
+    elif section == "Shot build-up PxT":
+        st.markdown("**Shot build-up**")
+        st.caption("PxT here uses the seven tagged action sources; it is not the full team PxT total.")
+        if shot_rows:
+            shot_labels = {int(row["event_id"]): row["Label"] for row in shot_rows}
             selected_event_id = st.selectbox(
-                "Shot or goal",
-                [int(row["event_id"]) for row in shot_goal_rows],
+                "Shot",
+                [int(row["event_id"]) for row in shot_rows],
                 format_func=lambda event_id: shot_labels.get(int(event_id), str(event_id)),
             )
             selected_event = events_by_id[int(selected_event_id)]
-            selected_shot = next(row for row in shot_goal_rows if int(row["event_id"]) == int(selected_event_id))
+            selected_shot = next(row for row in shot_rows if int(row["event_id"]) == int(selected_event_id))
             build_up_rows = _build_up_rows(events, selected_event, events_kpis, players_by_id, squads_by_id)
 
             metric_cols = st.columns(5)
             metric_cols[0].metric("Sequence Actions", len(build_up_rows))
-            metric_cols[1].metric("Build-up xT", f"{sum(float(row['xT']) for row in build_up_rows):.3f}")
-            metric_cols[2].metric("Selected xT", f"{float(selected_shot['xT']):.3f}")
+            metric_cols[1].metric(
+                "Build-up action PxT",
+                f"{sum(float(row['Action PxT']) for row in build_up_rows):.3f}",
+            )
+            metric_cols[2].metric("Selected action PxT", f"{float(selected_shot['Action PxT']):.3f}")
             selected_xg = selected_shot.get("xG")
             metric_cols[3].metric(
                 "Shot xG",
@@ -942,17 +944,17 @@ def render_match_details_page(
                 st.markdown(build_up_map, unsafe_allow_html=True)
                 st.dataframe(_build_up_table_rows(build_up_rows), hide_index=True, width="stretch")
             else:
-                st.caption("No coordinate data was available for this shot or goal.")
+                st.caption("No coordinate data was available for this shot.")
         else:
-            st.caption("No shot or goal events with coordinate data were found for this match.")
+            st.caption("No shot events with coordinate data were found for this match.")
 
-        st.markdown("**Best xT Players · Both Teams**")
-        if player_xt_rows:
-            st.dataframe(player_xt_rows[:24], hide_index=True, width="stretch")
+        st.markdown("**Best selected-action PxT players · both teams**")
+        if player_action_pxt_rows:
+            st.dataframe(player_action_pxt_rows[:24], hide_index=True, width="stretch")
         else:
-            st.caption("No event-level xT values were found for this match.")
+            st.caption("No tagged action-level PxT values were found for this match.")
 
-        with st.expander("Top xT Actions · Both Teams", expanded=False):
+        with st.expander("Top selected-action PxT actions · both teams", expanded=False):
             st.dataframe(
                 [
                     {
@@ -963,9 +965,9 @@ def render_match_details_page(
                         "Detail": row["Detail"],
                         "Result": row["Result"],
                         "Type": row["Type"],
-                        "xT": round(float(row["xT"]), 5),
+                        "Action PxT": round(float(row["Action PxT"]), 5),
                     }
-                    for row in match_xt_rows[:120]
+                    for row in match_action_pxt_rows[:120]
                 ],
                 hide_index=True,
                 width="stretch",
@@ -997,6 +999,7 @@ def render_match_details_page(
 
         cards = card_events(events, players_by_id, squads_by_id)
         st.markdown("**Cards**")
+        st.caption("Yellow-card event KPIs are unavailable in this delivery; red cards remain numeric.")
         if cards:
             st.dataframe(cards, hide_index=True, width="stretch")
         else:

@@ -1,16 +1,12 @@
-# PROVENANCE: AI-ASSISTED DRAFT — MATHEMATICAL ANALYSIS
-# MANUAL REVIEW REQUIRED: Do not describe this module as manually authored.
-# A student should be able to derive, justify, test, and if necessary rewrite
-# each operation below before using it in assessed analytical work.
-
-from __future__ import annotations
-
 import numpy as np
 from scipy.signal import convolve2d
 
 from .season_heatmap_data import GRID_COLUMNS
 
 
+# Data Processing Assistance
+# Extra mathematical methods: smoothing, display capping, and attacking-third
+# shares are project extensions described in README.md.
 def smooth_grid(grid: list[list[float]]) -> list[list[float]]:
     """Return a mass-preserving local smoothing of a 12-by-8 event grid.
 

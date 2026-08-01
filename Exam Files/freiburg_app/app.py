@@ -1,7 +1,3 @@
-# PROVENANCE: AI-ASSISTED — STREAMLIT ROUTING / WEBSITE DESIGN
-
-from __future__ import annotations
-
 import streamlit as st
 
 from .components import render_sidebar_menu, selected_match_id_from_query, selected_page_from_query
@@ -11,6 +7,7 @@ from .matches import load_freiburg_match_summaries
 from .styles import apply_styles
 
 
+# UI Assistance
 def main() -> None:
     apply_styles()
 

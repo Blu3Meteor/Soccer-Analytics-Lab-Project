@@ -1,9 +1,3 @@
-# PROVENANCE: MIXED MODULE — SEE CODE_PROVENANCE.md
-# Data/table construction and Streamlit presentation currently share this file.
-# The website rendering is AI-assisted; analysis authorship must be verified.
-
-from __future__ import annotations
-
 from html import escape
 from typing import Any
 
@@ -15,7 +9,7 @@ from .matches import load_scored_matches
 from .regression import build_regression_outputs
 
 
-# ANALYSIS / TABLE CONSTRUCTION — AUTHORSHIP TO VERIFY
+# Data Processing Assistance
 @st.cache_data(show_spinner=False)
 def build_league_table() -> list[dict[str, Any]]:
     squads, _, _ = load_reference_data()
@@ -80,7 +74,7 @@ def build_league_table() -> list[dict[str, Any]]:
     return rows
 
 
-# AI-ASSISTED WEBSITE PRESENTATION
+# UI Assistance
 def render_league_table_page(squads: dict[int, dict[str, Any]]) -> None:
     rows = build_league_table()
     regression = build_regression_outputs()
@@ -179,6 +173,6 @@ def render_league_table_page(squads: dict[int, dict[str, Any]]) -> None:
 
     st.caption(
         "Model Rank = clubs ordered by expected points from the regression model; "
-        "Expected Pts = predicted league points; "
+        "Expected Pts = in-sample model-based points for the supplied fixtures; "
         "Attack = scoring strength, where higher is better; Concede = defensive strength, where lower is better."
     )

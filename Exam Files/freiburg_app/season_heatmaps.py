@@ -1,9 +1,3 @@
-# PROVENANCE: AI-ASSISTED — WEBSITE DESIGN / VISUALISATION
-# This module renders Streamlit controls and SVG heatmaps. The extraction and
-# mathematical transformation layers live in separate, explicitly marked files.
-
-from __future__ import annotations
-
 from html import escape
 from typing import Any
 
@@ -13,6 +7,7 @@ from .season_heatmap_analysis import attacking_third_share, display_scale_maximu
 from .season_heatmap_data import GRID_COLUMNS, GRID_ROWS, PITCH_LENGTH, PITCH_WIDTH, season_freiburg_heatmap_data
 
 
+# UI Assistance
 def _cell_color(value: float, maximum: float, channel: str) -> str:
     if value <= 0 or maximum <= 0:
         return "rgba(255,255,255,0.015)"
@@ -179,7 +174,7 @@ def render_season_heatmaps_page(summaries: list[dict[str, Any]], freiburg_id: in
     st.markdown('<div class="app-kicker">SC Freiburg · Bundesliga 2023/24</div>', unsafe_allow_html=True)
     st.title("Season heatmaps")
     st.caption(
-        "Where Freiburg's shots started and where positive possession-threat actions ended. "
+        "Where Freiburg's shots started and where positive PxT from seven tagged-action sources ended. "
         "All matches in the supplied season dataset are shown from left to right."
     )
 
@@ -187,27 +182,27 @@ def render_season_heatmaps_page(summaries: list[dict[str, Any]], freiburg_id: in
         st.metric("Total xG", f'{data["total_xg"]:.2f}', border=True)
         st.metric("xG per shot", f'{data["total_xg"] / max(1, data["shots"]):.3f}', border=True)
         st.metric("xG per match", f'{data["total_xg"] / match_count:.2f}', border=True)
-        st.metric("Positive PxT", f'{data["total_pxt"]:.2f}', border=True)
-        st.metric("PxT per match", f'{data["total_pxt"] / match_count:.2f}', border=True)
+        st.metric("Positive action PxT", f'{data["total_pxt"]:.2f}', border=True)
+        st.metric("Action PxT per match", f'{data["total_pxt"] / match_count:.2f}', border=True)
 
     view = st.segmented_control(
         "Heatmap measure",
         ["Value", "Volume"],
         default="Value",
         key="season_heatmap_measure",
-        help="Value weights zones by xG or PxT. Volume counts shots or positive PxT actions.",
+        help="Value weights zones by xG or selected action PxT. Volume counts shots or positive action events.",
         width="stretch",
     )
     if view == "Volume":
         left_grid, right_grid = data["shot_grid"], data["action_grid"]
         left_title = f'{data["shots"]} shots · {attacking_third_share(left_grid):.0%} in the attacking third'
-        right_title = f'{data["actions"]} positive actions · {attacking_third_share(right_grid):.0%} ended in the attacking third'
+        right_title = f'{data["actions"]} positive PxT events · {attacking_third_share(right_grid):.0%} ended in the attacking third'
         left_unit, right_unit = "Shots", "Actions"
     else:
         left_grid, right_grid = data["xg_grid"], data["pxt_grid"]
         left_title = f'{data["total_xg"]:.2f} xG · {attacking_third_share(left_grid):.0%} in the attacking third'
-        right_title = f'{data["total_pxt"]:.2f} positive PxT · {attacking_third_share(right_grid):.0%} ended in the attacking third'
-        left_unit, right_unit = "xG", "PxT"
+        right_title = f'{data["total_pxt"]:.2f} positive action PxT · {attacking_third_share(right_grid):.0%} ended in the attacking third'
+        left_unit, right_unit = "xG", "Action PxT"
 
     columns = st.columns(2)
     with columns[0]:
@@ -216,7 +211,7 @@ def render_season_heatmaps_page(summaries: list[dict[str, Any]], freiburg_id: in
             st.markdown(_render_grid_svg(left_grid, left_title, "xg", left_unit), unsafe_allow_html=True)
     with columns[1]:
         with st.container(border=True):
-            st.subheader("Positive PxT destinations")
+            st.subheader("Positive action PxT destinations")
             st.markdown(_render_grid_svg(right_grid, right_title, "pxt", right_unit), unsafe_allow_html=True)
 
     st.caption(
@@ -226,7 +221,8 @@ def render_season_heatmaps_page(summaries: list[dict[str, Any]], freiburg_id: in
     with st.expander("How to read these heatmaps", icon=":material/info:"):
         st.markdown(
             "**Value** answers *where did Freiburg generate quality?* by weighting every shot by xG "
-            "and every positive threat action by PxT. **Volume** answers *where did actions happen?* "
+            "and every positive tagged-action event by its PxT. **Volume** answers *where did actions happen?* "
             "by counting events. A light 3×3 smoothing kernel makes broader spatial patterns easier to see; "
-            "the totals above remain calculated from the unsmoothed event values. Only positive PxT is included."
+            "the totals above remain calculated from unsmoothed values. Only positive values from pass, dribble, "
+            "set-piece, block, shot, ball-win, and foul PxT are included; this is not total team PxT."
         )

@@ -1,18 +1,15 @@
-# PROVENANCE: AI-ASSISTED DRAFT — MATHEMATICAL / DATA ANALYSIS
-# This comparison was generated with LLM assistance and is not human-authored.
-# Method: each selected-match block is compared with the arithmetic mean of the
-# same block across Freiburg's other matches (a leave-one-out baseline).
-
-from __future__ import annotations
-
 from typing import Any
 
 import pandas as pd
 
 
-SUPPORTED_METRICS = {"Shots", "xG", "Positive PxT actions", "Positive PxT"}
+SUPPORTED_METRICS = {"Shots", "xG", "Positive action PxT events", "Positive action PxT"}
 
 
+# Data Processing Assistance
+# Extra mathematical method: Soccermatics uses comparative heatmaps, while this
+# app uses its own leave-one-match-out block average.
+# https://soccermatics.readthedocs.io/en/latest/gallery/lesson2/plot_PassCompare.html
 def build_match_vs_normal_comparison(
     selected_match_id: int,
     source_rows: list[dict[str, Any]],

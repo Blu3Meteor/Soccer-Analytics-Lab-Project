@@ -1,10 +1,7 @@
-# PROVENANCE: AI-ASSISTED — WEBSITE CSS / VISUAL DESIGN
-
-from __future__ import annotations
-
 import streamlit as st
 
 
+# UI Assistance
 CSS = """
 <style>
 :root {

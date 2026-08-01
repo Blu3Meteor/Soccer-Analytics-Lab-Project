@@ -1,8 +1,3 @@
-# PROVENANCE: AI-ASSISTED — LINEUP DATA PREPARATION / PITCH VISUALISATION
-# Positional marker placement is a design mapping, not tracking-data analysis.
-
-from __future__ import annotations
-
 from collections import defaultdict
 from html import escape
 from typing import Any
@@ -10,12 +5,13 @@ from typing import Any
 import streamlit as st
 
 from .config import FREIBURG_NAME
-from .data import format_position, minute_label, player_name
+from .data import format_position, minute_label, player_name, short_player_name
 
 
 PlayerRankLookup = dict[tuple[int, int], dict[str, Any]]
 
 
+# UI Assistance
 def _player_rank(
     lineup: dict[str, Any],
     player_id: int,
@@ -125,6 +121,7 @@ def _player_tooltip_html(
     )
 
 
+# Data Processing Assistance
 def lineup_for_team(lineups: dict[str, Any], team_id: int) -> dict[str, Any]:
     for key in ("squadHome", "squadAway"):
         squad = lineups.get(key, {})
@@ -158,16 +155,7 @@ def shirt_numbers(lineup: dict[str, Any]) -> dict[int, Any]:
     return {int(player["id"]): player.get("shirtNumber") for player in lineup.get("players", [])}
 
 
-def player_display_name(player_id: int, players: dict[int, dict[str, Any]]) -> str:
-    name = player_name(player_id, players)
-    if len(name) <= 13:
-        return name
-    parts = name.split()
-    if len(parts) >= 2:
-        return f"{parts[0][0]}. {parts[-1]}"
-    return name[:12]
-
-
+# UI Assistance
 def position_depth(position: str | None) -> float:
     position = position or ""
     if position == "GOALKEEPER":
@@ -247,7 +235,7 @@ def render_lineup_pitch(
         player_id = marker["player_id"]
         shirt = shirts.get(player_id, "")
         full_name = player_name(player_id, players)
-        short_name = player_display_name(player_id, players)
+        short_name = short_player_name(player_id, players)
         rank_data = _player_rank(lineup, player_id, player_ranks)
         rank_label = _rank_label(rank_data)
         position = format_position(marker["position"])
@@ -281,6 +269,7 @@ def render_lineup_pitch(
     )
 
 
+# Data Processing Assistance
 def bench_rows(
     lineup: dict[str, Any],
     players: dict[int, dict[str, Any]],
@@ -302,15 +291,30 @@ def bench_rows(
     return rows
 
 
-def substitution_rows(
+# Data Processing Assistance
+def formation_rows(lineup: dict[str, Any]) -> list[dict[str, str]]:
+    history = sorted(
+        lineup.get("formations", []),
+        key=lambda change: float(change.get("gameTimeInSec") or 0.0),
+    )
+    return [
+        {
+            "Time": minute_label(change.get("gameTime")),
+            "Formation": str(change.get("formation") or "Unknown"),
+        }
+        for change in history
+    ]
+
+
+def lineup_change_rows(
     lineup: dict[str, Any],
     players: dict[int, dict[str, Any]],
     player_ranks: PlayerRankLookup | None = None,
 ) -> list[dict[str, Any]]:
     rows = []
-    for sub in lineup.get("substitutions", []):
-        from_position = sub.get("fromPosition")
-        to_position = sub.get("toPosition")
+    for change in lineup.get("substitutions", []):
+        from_position = change.get("fromPosition")
+        to_position = change.get("toPosition")
         if from_position == "BANK":
             movement = "↑ In"
             movement_class = "sub-in"
@@ -322,22 +326,25 @@ def substitution_rows(
             movement_class = "sub-moved"
         rows.append(
             {
-                "Time": minute_label(sub.get("gameTime")),
-                "Player": player_name(int(sub["playerId"]), players),
+                "Time": minute_label(change.get("gameTime")),
+                "Player": player_name(int(change["playerId"]), players),
                 "Position rank": _rank_label(
-                    _player_rank(lineup, int(sub["playerId"]), player_ranks),
+                    _player_rank(lineup, int(change["playerId"]), player_ranks),
                     detailed=True,
                 ),
                 "Move": movement,
                 "_class": movement_class,
-                "From": format_position(from_position),
-                "To": format_position(to_position),
+                "From position": format_position(from_position),
+                "From side": format_position(change.get("fromPositionSide")),
+                "To position": format_position(to_position),
+                "To side": format_position(change.get("positionSide")),
             }
         )
     return rows
 
 
-def render_substitution_table(rows: list[dict[str, Any]]) -> str:
+# UI Assistance
+def render_lineup_change_table(rows: list[dict[str, Any]]) -> str:
     body = []
     for row in rows:
         movement_class = row.get("_class", "sub-moved")
@@ -347,13 +354,16 @@ def render_substitution_table(rows: list[dict[str, Any]]) -> str:
             f"<td>{escape(str(row.get('Player', '')))}</td>"
             f"<td>{escape(str(row.get('Position rank', '')))}</td>"
             f'<td><span class="sub-move {movement_class}">{escape(str(row.get("Move", "")))}</span></td>'
-            f"<td>{escape(str(row.get('From', '')))}</td>"
-            f"<td>{escape(str(row.get('To', '')))}</td>"
+            f"<td>{escape(str(row.get('From position', '')))}</td>"
+            f"<td>{escape(str(row.get('From side', '')))}</td>"
+            f"<td>{escape(str(row.get('To position', '')))}</td>"
+            f"<td>{escape(str(row.get('To side', '')))}</td>"
             "</tr>"
         )
     return (
         '<table class="sub-table">'
-        "<thead><tr><th>Time</th><th>Player</th><th>Position rank</th><th>Move</th><th>From</th><th>To</th></tr></thead>"
+        "<thead><tr><th>Time</th><th>Player</th><th>Position rank</th><th>Move</th>"
+        "<th>From position</th><th>From side</th><th>To position</th><th>To side</th></tr></thead>"
         f"<tbody>{''.join(body)}</tbody>"
         "</table>"
     )
@@ -377,9 +387,15 @@ def render_lineup_panel(
         st.dataframe(lineup_rows(lineup, players, player_ranks), hide_index=True, width="stretch")
     with st.expander("Bench", expanded=False):
         st.dataframe(bench_rows(lineup, players, player_ranks), hide_index=True, width="stretch")
-    with st.expander("Substitutions", expanded=False):
-        rows = substitution_rows(lineup, players, player_ranks)
+    with st.expander("Formation changes", expanded=False):
+        rows = formation_rows(lineup)
         if rows:
-            st.markdown(render_substitution_table(rows), unsafe_allow_html=True)
+            st.dataframe(rows, hide_index=True, width="stretch")
         else:
-            st.caption("No substitutions listed.")
+            st.caption("No formation history listed.")
+    with st.expander("Lineup changes", expanded=False):
+        rows = lineup_change_rows(lineup, players, player_ranks)
+        if rows:
+            st.markdown(render_lineup_change_table(rows), unsafe_allow_html=True)
+        else:
+            st.caption("No lineup changes listed.")

@@ -1,12 +1,9 @@
-# PROVENANCE: AI-ASSISTED — EVENT DATA EXTRACTION / TABLE PREPARATION
-
-from __future__ import annotations
-
 from typing import Any
 
 from .data import format_position, minute_label, player_name, short_team_name, team_name
 
 
+# Data Processing Assistance
 def scoring_events(
     events: list[dict[str, Any]],
     match: dict[str, Any],
@@ -47,7 +44,7 @@ def card_events(
     squads: dict[int, dict[str, Any]],
 ) -> list[dict[str, Any]]:
     rows = []
-    card_types = {"YELLOW_CARD", "SECOND_YELLOW_CARD", "RED_CARD"}
+    card_types = {"YELLOW_CARD", "RED_CARD"}
     for event in events:
         if event.get("actionType") not in card_types:
             continue

@@ -1,8 +1,3 @@
-# PROVENANCE: AI-ASSISTED — IMPECT DATA EXTRACTION / DISPLAY FORMATTING
-# This module loads and labels source data; it does not interpret performance.
-
-from __future__ import annotations
-
 import json
 from datetime import datetime
 from typing import Any
@@ -12,6 +7,7 @@ import streamlit as st
 from .config import BERLIN_TZ, DATA_ROOT, ITERATION_ID
 
 
+# Data Processing Assistance
 def load_json(relative_path: str) -> Any:
     path = DATA_ROOT / relative_path
     with path.open("r", encoding="utf-8") as file:
@@ -50,6 +46,7 @@ def load_match_events_kpis(match_id: int) -> list[dict[str, Any]]:
     return load_json(f"events_kpis/events_kpis_{match_id}.json")
 
 
+# UI Assistance
 def team_name(team_id: int, squads: dict[int, dict[str, Any]]) -> str:
     return squads.get(int(team_id), {}).get("name", f"Team {team_id}")
 
@@ -118,6 +115,15 @@ def player_name(player_id: int | None, players: dict[int, dict[str, Any]]) -> st
         or " ".join(part for part in [player.get("firstname"), player.get("lastname")] if part)
         or f"Player {player_id}"
     )
+
+
+def short_player_name(player_id: int, players: dict[int, dict[str, Any]]) -> str:
+    """Shorten long player names consistently across pitch graphics."""
+    name = player_name(player_id, players)
+    if len(name) <= 13:
+        return name
+    parts = name.split()
+    return f"{parts[0][0]}. {parts[-1]}" if len(parts) >= 2 else name[:12]
 
 
 def format_position(value: str | None) -> str:

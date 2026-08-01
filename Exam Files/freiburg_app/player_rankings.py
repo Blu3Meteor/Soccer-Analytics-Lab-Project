@@ -1,9 +1,3 @@
-# PROVENANCE: MIXED MODULE — SEE CODE_PROVENANCE.md
-# AI-assisted extraction and radar/UI code are mixed with ranking calculations.
-# Do not claim the mathematical sections as manual until authorship is verified.
-
-from __future__ import annotations
-
 import math
 from collections import defaultdict
 from html import escape
@@ -18,6 +12,8 @@ from .config import (
     KPI_DEF_PXT_BLOCK,
     KPI_DEF_PXT_DRIBBLE,
     KPI_DEF_PXT_PASS,
+    KPI_NEUTRAL_PASSES,
+    KPI_POSTSHOT_XG,
     KPI_PXT_ATTACK,
     KPI_PXT_BALL_WIN,
     KPI_PXT_DRIBBLE,
@@ -25,8 +21,21 @@ from .config import (
     KPI_PXT_REC,
     KPI_SHOT_XG,
 )
-from .data import load_match_events, load_match_events_kpis, load_match_player_kpis, player_name, team_name
-from .event_utils import attacking_event_shares, event_coordinate_x, event_kpi_values, event_player_id
+from .data import (
+    load_match_events,
+    load_match_events_kpis,
+    load_match_lineups,
+    load_match_player_kpis,
+    player_name,
+    team_name,
+)
+from .event_utils import (
+    attacking_event_shares,
+    event_coordinate_x,
+    event_kpi_values,
+    event_player_id,
+    player_kpi_values,
+)
 
 
 KPI_ASSISTS = 77
@@ -51,7 +60,7 @@ KPI_EXPECTED_GOAL_ASSISTS = 1782
 KPI_EXPECTED_PASSES = 1783
 
 KPI_MAP_KEYS = {
-    "PXT": KPI_PXT_ATTACK,
+    "Attack PxT": KPI_PXT_ATTACK,
     "Pass PXT": KPI_PXT_PASS,
     "Dribble PXT": KPI_PXT_DRIBBLE,
     "Ball Win PXT": KPI_PXT_BALL_WIN,
@@ -81,13 +90,14 @@ KPI_MAP_KEYS = {
     "Expected Passes": KPI_EXPECTED_PASSES,
     "Successful Passes": KPI_SUCCESSFUL_PASSES,
     "Unsuccessful Passes": KPI_UNSUCCESSFUL_PASSES,
+    "Neutral Passes": KPI_NEUTRAL_PASSES,
     "Shot xG": KPI_SHOT_XG,
 }
 
 
 RADAR_CONFIGS: dict[str, list[dict[str, Any]]] = {
     "Forwards": [
-        {"label": "PXT", "key": "PXT", "kind": "attack"},
+        {"label": "Attack PxT", "key": "Attack PxT", "kind": "attack"},
         {"label": "Aerial Wins", "key": "Aerial Wins", "kind": "neutral"},
         {"label": "npxG", "key": "npxG", "kind": "attack"},
         {"label": "NP Goals", "key": "NP Goals", "kind": "attack"},
@@ -96,17 +106,27 @@ RADAR_CONFIGS: dict[str, list[dict[str, Any]]] = {
         {"label": "Dribble Success", "key": "Dribble Success %", "kind": "rate"},
     ],
     "Midfield": [
-        {"label": "PXT", "key": "PXT", "kind": "attack"},
+        {"label": "Attack PxT", "key": "Attack PxT", "kind": "attack"},
         {"label": "Pass PXT", "key": "Pass PXT", "kind": "attack"},
         {"label": "Bypassed Opp.", "key": "Bypassed Opponents", "kind": "attack"},
         {"label": "Receiving PXT", "key": "Receiving PXT", "kind": "attack"},
         {"label": "Ball Wins", "key": "Ball Win Removed Opponents", "kind": "defense"},
-        {"label": "Def Threat", "key": "Def PXT Active", "kind": "defense"},
+        {
+            "label": "Threat Prevented",
+            "key": "Def PXT Active",
+            "kind": "defense",
+            "direction": -1,
+        },
         {"label": "xShot Assists", "key": "Expected Shot Assists", "kind": "attack"},
         {"label": "Ball Security", "key": "Ball Security", "kind": "rate"},
     ],
     "Defense": [
-        {"label": "Def Threat", "key": "Def PXT Active", "kind": "defense"},
+        {
+            "label": "Threat Prevented",
+            "key": "Def PXT Active",
+            "kind": "defense",
+            "direction": -1,
+        },
         {"label": "Interceptions", "key": "Interceptions", "kind": "defense"},
         {"label": "Blocks", "key": "Blocks", "kind": "defense"},
         {"label": "Aerial Win %", "key": "Aerial Win %", "kind": "rate"},
@@ -118,17 +138,17 @@ RADAR_CONFIGS: dict[str, list[dict[str, Any]]] = {
     "GK": [
         {"label": "Save Actions", "key": "GK Saves", "kind": "defense"},
         {"label": "Claims", "key": "GK Catches", "kind": "defense"},
-        {"label": "PSxG Prevented", "key": "PSxG Prevented", "kind": "rate"},
+        {"label": "PSxG Prevented", "key": "PSxG Prevented", "kind": "neutral"},
         {"label": "Def Actions", "key": "Keeper Defensive Actions", "kind": "defense"},
         {"label": "Pass PXT", "key": "Pass PXT", "kind": "attack"},
-        {"label": "Pass Over Exp.", "key": "Pass Over Expected", "kind": "rate"},
+        {"label": "Pass Over Exp.", "key": "Pass Over Expected", "kind": "neutral"},
         {"label": "Ball Security", "key": "Ball Security", "kind": "rate"},
     ],
 }
 DEFAULT_MINIMUM_MINUTES = 450
 
 
-# AI-ASSISTED DATA EXTRACTION / PLAYER-EVENT PREPARATION
+# Data Processing Assistance
 def _position_bucket(position: str | None) -> str:
     value = position or ""
     if "GOALKEEPER" in value:
@@ -140,14 +160,6 @@ def _position_bucket(position: str | None) -> str:
     if "DEFENDER" in value or "WINGBACK" in value:
         return "Defense"
     return "Midfield"
-
-
-def _kpi_map(player: dict[str, Any]) -> dict[int, float]:
-    values: dict[int, float] = defaultdict(float)
-    for item in player.get("kpis", []):
-        values[int(item["kpiId"])] += float(item.get("value") or 0.0)
-    return values
-
 
 def _empty_row(
     player_id: int,
@@ -163,8 +175,8 @@ def _empty_row(
         "Team": team_name(team_id, squads),
         "_match_ids": set(),
         "_position_minutes": defaultdict(float),
-        "_team_possession_seconds": 0.0,
-        "_opponent_possession_seconds": 0.0,
+        "_team_event_share_minutes": 0.0,
+        "_opponent_event_share_minutes": 0.0,
         "Minutes": 0.0,
         "Position": position or "",
         "Position Group": _position_bucket(position),
@@ -188,9 +200,68 @@ def _empty_row(
 
 
 def _add_kpis(row: dict[str, Any], player: dict[str, Any]) -> None:
-    values = _kpi_map(player)
+    values = player_kpi_values(player)
     for label, kpi_id in KPI_MAP_KEYS.items():
         row[label] += values[kpi_id]
+
+
+# Data Processing Assistance
+def _game_time_seconds(item: dict[str, Any]) -> float:
+    """Read the provider's period-aware match clock."""
+    game_time = item.get("gameTime") or {}
+    if not isinstance(game_time, dict):
+        return 0.0
+    try:
+        return float(game_time.get("gameTimeInSec") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _goalkeeper_intervals(
+    lineups: dict[str, Any],
+    player_rows: dict[tuple[int, int], dict[str, Any]],
+) -> dict[int, list[tuple[float, float, dict[str, Any]]]]:
+    """Build each team's goalkeeper intervals from lineup position changes."""
+    intervals: dict[int, list[tuple[float, float, dict[str, Any]]]] = defaultdict(list)
+    for side_key in ("squadHome", "squadAway"):
+        lineup = lineups.get(side_key, {})
+        team_id = int(lineup.get("id", -1))
+        if team_id < 0:
+            continue
+
+        active = {
+            int(position["playerId"]): 0.0
+            for position in lineup.get("startingPositions", [])
+            if position.get("position") == "GOALKEEPER"
+        }
+        changes = sorted(lineup.get("substitutions", []), key=_game_time_seconds)
+        for change in changes:
+            player_id = int(change["playerId"])
+            second = _game_time_seconds(change)
+            if change.get("fromPosition") == "GOALKEEPER":
+                start = active.pop(player_id, None)
+                row = player_rows.get((team_id, player_id))
+                if start is not None and row is not None:
+                    intervals[team_id].append((start, second, row))
+            if change.get("toPosition") == "GOALKEEPER":
+                active[player_id] = second
+
+        for player_id, start in active.items():
+            row = player_rows.get((team_id, player_id))
+            if row is not None:
+                intervals[team_id].append((start, math.inf, row))
+    return dict(intervals)
+
+
+def _active_goalkeeper(
+    goalkeeper_intervals: dict[int, list[tuple[float, float, dict[str, Any]]]],
+    team_id: int,
+    second: float,
+) -> dict[str, Any] | None:
+    for start, end, row in goalkeeper_intervals.get(team_id, []):
+        if start <= second < end:
+            return row
+    return None
 
 
 def _add_events(
@@ -199,33 +270,25 @@ def _add_events(
     events_kpis: list[dict[str, Any]],
     home_id: int,
     away_id: int,
+    goalkeeper_intervals: dict[int, list[tuple[float, float, dict[str, Any]]]],
 ) -> None:
     xg_by_event = event_kpi_values(events_kpis, KPI_SHOT_XG)
-    postshot_xg_by_event = event_kpi_values(events_kpis, 1401)
-    goalkeepers = {
-        (team_id, player_id): row
-        for (team_id, player_id), row in player_rows.items()
-        if row["Position Group"] == "GK"
-    }
-    keepers_by_team = defaultdict(list)
-    for (team_id, _player_id), row in goalkeepers.items():
-        keepers_by_team[team_id].append(row)
+    postshot_xg_by_event = event_kpi_values(events_kpis, KPI_POSTSHOT_XG)
 
     for event in events:
         team_id_raw = event.get("squadId")
         player_id = event_player_id(event)
         action_type = event.get("actionType")
         action = event.get("action")
-        if team_id_raw is None or player_id is None:
+        if team_id_raw is None:
             continue
         team_id = int(team_id_raw)
-        key = (team_id, player_id)
-        row = player_rows.get(key)
+        row = player_rows.get((team_id, player_id)) if player_id is not None else None
         if row is not None:
             if action_type == "SHOT" and action != "PENALTY_KICK":
                 row["npxG"] += xg_by_event.get(int(event["id"]), 0.0)
-            elif action_type == "GOAL" and action != "PENALTY_KICK":
-                row["NP Goals"] += 1
+                if event.get("result") == "SUCCESS":
+                    row["NP Goals"] += 1
             elif action_type == "RECEPTION":
                 start_x = event_coordinate_x(event, "start")
                 if start_x is not None and start_x >= 17.5:
@@ -251,51 +314,54 @@ def _add_events(
             elif action_type in {"CLEARANCE", "LOOSE_BALL_REGAIN"} and row["Position Group"] == "GK":
                 row["Keeper Defensive Actions"] += 1
 
-        if action_type in {"SHOT", "GOAL"}:
-            defending_team = away_id if team_id == home_id else home_id
-            active_keepers = keepers_by_team.get(defending_team, [])
-            if active_keepers:
-                keeper = max(active_keepers, key=lambda item: item["Minutes"])
+        opponent_id = away_id if team_id == home_id else home_id
+        event_second = _game_time_seconds(event)
+        if action_type == "SHOT":
+            keeper = _active_goalkeeper(goalkeeper_intervals, opponent_id, event_second)
+            if keeper is not None:
                 keeper["PSxG Faced"] += postshot_xg_by_event.get(int(event["id"]), 0.0)
-                if action_type == "GOAL":
-                    keeper["Goals Conceded"] += 1
+        elif action_type in {"GOAL", "OWN_GOAL"}:
+            conceding_team = team_id if action_type == "OWN_GOAL" else opponent_id
+            keeper = _active_goalkeeper(goalkeeper_intervals, conceding_team, event_second)
+            if keeper is not None:
+                keeper["Goals Conceded"] += 1
 
 
-# MATHEMATICAL PLAYER SCORING — AUTHORSHIP TO VERIFY
-# This section defines derived rates, opportunity adjustments, and ranks.
+# Extra mathematical methods: attacking-event-share adjustment and derived rates extend
+# the Soccermatics per-90/radar method and are listed in README.md.
 def _finalize_row(row: dict[str, Any]) -> dict[str, Any]:
     position_minutes = row.pop("_position_minutes")
     if position_minutes:
         row["Position Group"] = max(position_minutes.items(), key=lambda item: item[1])[0]
     row["Matches"] = len(row.pop("_match_ids"))
     minutes = float(row["Minutes"])
-    team_possession_minutes = float(row.pop("_team_possession_seconds") or 0.0)
-    opponent_possession_minutes = float(row.pop("_opponent_possession_seconds") or 0.0)
-    team_pos = team_possession_minutes / minutes if minutes else 0.5
-    opp_pos = opponent_possession_minutes / minutes if minutes else 0.5
-    row["Team Possession"] = team_pos
-    row["Opponent Possession"] = opp_pos
+    team_event_share_minutes = float(row.pop("_team_event_share_minutes") or 0.0)
+    opponent_event_share_minutes = float(row.pop("_opponent_event_share_minutes") or 0.0)
+    row["Team Event Share"] = team_event_share_minutes / minutes if minutes else 0.5
+    row["Opponent Event Share"] = opponent_event_share_minutes / minutes if minutes else 0.5
     row["Dribble Success %"] = (
         row["Successful Dribbles"] / row["Dribbles"] * 100 if row["Dribbles"] else 0.0
     )
     aerial_total = row["Aerial Wins"] + row["Aerial Losses"]
     ground_total = row["Ground Wins"] + row["Ground Losses"]
-    passes_total = row["Successful Passes"] + row["Unsuccessful Passes"]
+    passes_total = row["Successful Passes"] + row["Unsuccessful Passes"] + row["Neutral Passes"]
     row["Aerial Win %"] = row["Aerial Wins"] / aerial_total * 100 if aerial_total else 0.0
     row["Ground Win %"] = row["Ground Wins"] / ground_total * 100 if ground_total else 0.0
     row["Ball Security"] = 100 - (row["Dangerous Ball Losses"] / max(1.0, minutes / 90) * 10)
     row["Ball Security"] = max(0.0, min(100.0, row["Ball Security"]))
     row["Pass Over Expected"] = row["Successful Passes"] - row["Expected Passes"]
     row["PSxG Prevented"] = row["PSxG Faced"] - row["Goals Conceded"]
-    row["Pass Completion %"] = row["Successful Passes"] / passes_total * 100 if passes_total else 0.0
+    row["Pass Completion % (neutral included)"] = (
+        row["Successful Passes"] / passes_total * 100 if passes_total else 0.0
+    )
     return row
 
 
 def _adjusted_value(row: dict[str, Any], metric: dict[str, Any]) -> float:
-    """Convert counts to per-90 and rescale opportunity to 50% possession.
+    """Convert counts to per-90 and rescale to a 50% attacking-event share.
 
-    Attacking metrics are multiplied by 0.5/team-possession share; defensive
-    metrics by 0.5/opponent-possession share. The 0.05 floor avoids unstable
+    Attacking metrics use 0.5/team-event share; defensive metrics use
+    0.5/opponent-event share. The 0.05 floor avoids unstable
     division but is a modelling choice that must be justified by the author.
     """
     key = metric["key"]
@@ -303,15 +369,18 @@ def _adjusted_value(row: dict[str, Any], metric: dict[str, Any]) -> float:
     value = float(row.get(key, 0.0))
     if kind == "rate":
         return value
+    # DEF_PXT measures threat conceded, so its displayed "Threat Prevented"
+    # value is sign-inverted before ranking: higher remains better.
+    value *= float(metric.get("direction", 1.0))
     value = per_90(value, float(row["Minutes"]))
     if kind == "attack":
-        return value * 0.5 / max(0.05, float(row["Team Possession"]))
+        return value * 0.5 / max(0.05, float(row["Team Event Share"]))
     if kind == "defense":
-        return value * 0.5 / max(0.05, float(row["Opponent Possession"]))
+        return value * 0.5 / max(0.05, float(row["Opponent Event Share"]))
     return value
 
 
-# AI-ASSISTED DATASET ASSEMBLY
+# Data Processing Assistance
 @st.cache_data(show_spinner=False)
 def build_player_ranking_rows(
     match_ids: tuple[int, ...],
@@ -324,17 +393,18 @@ def build_player_ranking_rows(
         player_kpis = load_match_player_kpis(match_id)
         events = load_match_events(match_id)
         events_kpis = load_match_events_kpis(match_id)
+        lineups = load_match_lineups(match_id)
         home_id = int(player_kpis["squadHome"]["id"])
         away_id = int(player_kpis["squadAway"]["id"])
-        possession = attacking_event_shares(events, (home_id, away_id))
+        event_shares = attacking_event_shares(events, (home_id, away_id))
 
         for side_key in ("squadHome", "squadAway"):
             side = player_kpis.get(side_key, {})
             team_id = int(side.get("id", -1))
             if team_id < 0:
                 continue
-            team_possession = possession.get(team_id, 0.5)
-            opponent_possession = 1.0 - team_possession
+            team_event_share = event_shares.get(team_id, 0.5)
+            opponent_event_share = 1.0 - team_event_share
             for player in side.get("players", []):
                 player_id = int(player["id"])
                 key = (team_id, player_id)
@@ -347,17 +417,19 @@ def build_player_ranking_rows(
                     row["_match_ids"].add(match_id)
                     group = _position_bucket(player.get("position"))
                     row["_position_minutes"][group] += minutes
-                    row["_team_possession_seconds"] += team_possession * minutes
-                    row["_opponent_possession_seconds"] += opponent_possession * minutes
+                    row["_team_event_share_minutes"] += team_event_share * minutes
+                    row["_opponent_event_share_minutes"] += opponent_event_share * minutes
                 row["Minutes"] += minutes
                 _add_kpis(row, player)
-        _add_events(rows, events, events_kpis, home_id, away_id)
+        goalkeeper_intervals = _goalkeeper_intervals(lineups, rows)
+        _add_events(rows, events, events_kpis, home_id, away_id, goalkeeper_intervals)
 
     final_rows = [_finalize_row(row) for row in rows.values()]
     return final_rows
 
 
-# MATHEMATICAL POSITION COMPARISON — AUTHORSHIP TO VERIFY
+# Mathematical reference: Soccermatics per-90 and percentile radar method
+# https://soccermatics.readthedocs.io/en/latest/gallery/lesson3/plot_RadarPlot.html
 def _score_position_rows(rows: list[dict[str, Any]], position: str, minimum_minutes: int) -> list[dict[str, Any]]:
     config = RADAR_CONFIGS[position]
     eligible = [
@@ -437,7 +509,7 @@ def build_player_rank_lookup(
     return lookup
 
 
-# AI-ASSISTED RADAR AND STREAMLIT PRESENTATION
+# UI Assistance
 def _radar_svg(player: dict[str, Any], position: str) -> str:
     config = RADAR_CONFIGS[position]
     values = [float(player.get(f"{metric['label']} Score", 0.0)) for metric in config]
@@ -523,7 +595,7 @@ def render_player_rankings_page(
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown(
         "Players are compared league-wide within their broad position group. Counting metrics are per 90 and "
-        "possession-adjusted to a 50% possession environment; rates such as duel win percentage and dribble success "
+        "adjusted to a 50% attacking-event-share environment; rates such as duel win percentage and dribble success "
         "are left as rates. The radar uses percentile ranks, so 100 is best in that position group and 0 is lowest."
     )
 

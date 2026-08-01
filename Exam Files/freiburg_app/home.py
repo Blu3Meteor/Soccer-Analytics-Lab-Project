@@ -1,7 +1,3 @@
-# PROVENANCE: AI-ASSISTED — STREAMLIT HOME-PAGE PRESENTATION
-
-from __future__ import annotations
-
 from typing import Any
 
 import streamlit as st
@@ -22,9 +18,19 @@ from .data import (
 )
 from .events import card_events, scoring_events, shot_events
 from .lineups import lineup_for_team, render_lineup_panel
-from .metrics import compute_stats, opposition_team, points_progression, season_record, shot_xg_by_event, stat_rows
+from .metrics import (
+    PASS_ACCURACY_LABEL,
+    PASS_ACCURACY_NOTE,
+    compute_stats,
+    opposition_team,
+    points_progression,
+    season_record,
+    shot_xg_by_event,
+    stat_rows,
+)
 
 
+# UI Assistance
 def render_home_page(
     summaries: list[dict[str, Any]],
     selected_index: int,
@@ -80,12 +86,19 @@ def render_home_page(
 
         with overview_tab:
             overview_cols = st.columns(4)
-            freiburg_goals = stats[freiburg_id]["shots"]
+            freiburg_shots = stats[freiburg_id]["shots"]
             opponent_id = opposition_team(selected_match, freiburg_id)
-            overview_cols[0].metric("Freiburg Shots", int(freiburg_goals))
-            overview_cols[1].metric("Freiburg Pass Accuracy", f"{stats[freiburg_id]['pass_accuracy']:.1f}%")
-            overview_cols[2].metric("Freiburg Possession", f"{stats[freiburg_id]['possession']}%")
+            overview_cols[0].metric("Freiburg Shots", int(freiburg_shots))
+            overview_cols[1].metric(
+                f"Freiburg {PASS_ACCURACY_LABEL}",
+                f"{stats[freiburg_id]['pass_accuracy']:.1f}%",
+            )
+            overview_cols[2].metric(
+                "Freiburg Attacking Event Share",
+                f"{stats[freiburg_id]['attacking_event_share']}%",
+            )
             overview_cols[3].metric("Opponent", short_team_name(team_name(opponent_id, squads_by_id)))
+            st.caption(PASS_ACCURACY_NOTE)
 
             st.markdown("**Scoring**")
             if goals:
@@ -118,6 +131,7 @@ def render_home_page(
                 )
 
         with stats_tab:
+            st.caption(PASS_ACCURACY_NOTE + " Yellow-card KPIs are unavailable in this 2023/24 dataset.")
             render_stat_comparison(rows, home_short, away_short)
 
         with events_tab:
@@ -131,10 +145,11 @@ def render_home_page(
             with event_cols[1]:
                 cards = card_events(events, players_by_id, squads_by_id)
                 st.markdown("**Cards**")
+                st.caption("Yellow-card events are unavailable in this 2023/24 dataset; red cards are shown.")
                 if cards:
                     st.dataframe(cards, hide_index=True, width="stretch")
                 else:
-                    st.caption("No card events recorded.")
+                    st.caption("No red-card events recorded.")
 
             with st.expander("Shots", expanded=False):
                 st.dataframe(shot_events(events, players_by_id, squads_by_id, xg_by_event), hide_index=True, width="stretch")

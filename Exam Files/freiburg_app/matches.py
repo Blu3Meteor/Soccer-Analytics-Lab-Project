@@ -1,7 +1,3 @@
-# PROVENANCE: AI-ASSISTED — MATCH DATA EXTRACTION / SUMMARY PREPARATION
-
-from __future__ import annotations
-
 from typing import Any
 
 import streamlit as st
@@ -11,12 +7,15 @@ from .data import load_match_events, load_reference_data, team_name
 from .metrics import compute_score, opposition_team, result_code_for_freiburg
 
 
+# Data Processing Assistance
 @st.cache_data(show_spinner=False)
 def load_scored_matches() -> list[dict[str, Any]]:
     """Load every fixture with names and scores reconstructed once."""
     squads, _, matches = load_reference_data()
     scored = []
     for match in matches:
+        if not match.get("available", False):
+            continue
         home_id = int(match["homeSquadId"])
         away_id = int(match["awaySquadId"])
         score = compute_score(load_match_events(int(match["id"])), home_id, away_id)

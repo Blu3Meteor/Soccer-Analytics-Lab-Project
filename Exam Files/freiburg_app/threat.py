@@ -1,15 +1,9 @@
-# PROVENANCE: MIXED MODULE — SEE CODE_PROVENANCE.md
-# AI-assisted data preparation and UI code are mixed with PxT transformations,
-# percentile ranks, value scores, and interpretations that require verification.
-
-from __future__ import annotations
-
 from collections import defaultdict
 from typing import Any
 
 import streamlit as st
 
-from .analysis_utils import minmax_score, percentile_rank
+from .analysis_utils import minmax_score, per_90, percentile_rank
 from .config import (
     KPI_DEF_PXT_ATTACK,
     KPI_DEF_PXT_DEFEND,
@@ -18,34 +12,19 @@ from .config import (
     KPI_OPP_PXT_BALL_WIN,
     KPI_OPP_PXT_DRIBBLE,
     KPI_OPP_PXT_FOUL,
-    KPI_OPP_PXT_NO_VIDEO,
     KPI_OPP_PXT_PASS,
     KPI_OPP_PXT_SETPIECE,
     KPI_OPP_PXT_SHOT,
     KPI_PXT_ATTACK,
-    KPI_PXT_BALL_WIN,
-    KPI_PXT_BLOCK,
     KPI_PXT_DEFEND,
-    KPI_PXT_DRIBBLE,
-    KPI_PXT_FOUL,
-    KPI_PXT_NO_VIDEO,
-    KPI_PXT_PASS,
     KPI_PXT_REC,
-    KPI_PXT_SETPIECE,
-    KPI_PXT_SHOT,
+    PLAYER_ATTRIBUTABLE_PXT_KPIS,
 )
 from .data import load_match_player_kpis, player_name, team_name
+from .event_utils import player_kpi_values
 
 
-ATTACK_SOURCE_KPIS = {
-    "Pass": KPI_PXT_PASS,
-    "Dribble": KPI_PXT_DRIBBLE,
-    "Set Piece": KPI_PXT_SETPIECE,
-    "Block": KPI_PXT_BLOCK,
-    "Shot": KPI_PXT_SHOT,
-    "Ball Win": KPI_PXT_BALL_WIN,
-    "Foul": KPI_PXT_FOUL,
-}
+ATTACK_SOURCE_KPIS = {label: kpi_id for kpi_id, label in PLAYER_ATTRIBUTABLE_PXT_KPIS.items()}
 
 OPP_THREAT_KPIS = {
     "Opp Pass": KPI_OPP_PXT_PASS,
@@ -58,17 +37,10 @@ OPP_THREAT_KPIS = {
     "Opp Ball Loss": KPI_OPP_PXT_BALL_LOSS,
 }
 
-PERCENTILE_SCALE_VERSION = 3
+PERCENTILE_SCALE_VERSION = 4
 
 
-# AI-ASSISTED KPI DATA EXTRACTION / ROW PREPARATION
-def _player_kpi_map(player: dict[str, Any]) -> dict[int, float]:
-    totals: dict[int, float] = defaultdict(float)
-    for kpi in player.get("kpis", []):
-        totals[int(kpi["kpiId"])] += float(kpi.get("value") or 0)
-    return totals
-
-
+# Data Processing Assistance
 def _position_group(position: str | None) -> str:
     value = position or ""
     if "GOALKEEPER" in value:
@@ -107,8 +79,6 @@ def _empty_player_row(
         "Opponent Threat While Defending": 0.0,
         "Net Threat": 0.0,
         "Receiving PXT": 0.0,
-        "No Video PXT": 0.0,
-        "Opponent No Video PXT": 0.0,
     }
 
 
@@ -121,14 +91,12 @@ def _add_player_segment(row: dict[str, Any], player: dict[str, Any], match_id: i
         row["_Raw Position Minutes"][position] += duration
     row["Minutes"] += duration
 
-    kpis = _player_kpi_map(player)
+    kpis = player_kpi_values(player)
     row["PXT Attack"] += kpis[KPI_PXT_ATTACK]
     row["PXT Defend"] += kpis[KPI_PXT_DEFEND]
     row["Opponent Threat While Attacking"] += kpis[KPI_DEF_PXT_ATTACK]
     row["Opponent Threat While Defending"] += kpis[KPI_DEF_PXT_DEFEND]
     row["Receiving PXT"] += kpis[KPI_PXT_REC]
-    row["No Video PXT"] += kpis[KPI_PXT_NO_VIDEO]
-    row["Opponent No Video PXT"] += kpis[KPI_OPP_PXT_NO_VIDEO]
 
     for label, kpi_id in ATTACK_SOURCE_KPIS.items():
         row[label] = row.get(label, 0.0) + kpis[kpi_id]
@@ -136,7 +104,8 @@ def _add_player_segment(row: dict[str, Any], player: dict[str, Any], match_id: i
         row[label] = row.get(label, 0.0) + kpis[kpi_id]
 
 
-# MATHEMATICAL THREAT TRANSFORMATIONS — AUTHORSHIP TO VERIFY
+# Extra mathematical methods: project-specific net-threat and interpretation
+# rules are listed in README.md and are not Soccermatics formulas.
 def _finalize_player_row(row: dict[str, Any]) -> dict[str, Any]:
     # REVIEW NOTE: Net Threat is defined here as Freiburg attacking PxT minus
     # opponent threat generated while Freiburg are attacking. It is a project
@@ -149,13 +118,15 @@ def _finalize_player_row(row: dict[str, Any]) -> dict[str, Any]:
     if raw_position_minutes:
         row["Position"] = max(raw_position_minutes.items(), key=lambda item: item[1])[0]
     row["Net Threat"] = row["PXT Attack"] - row["Opponent Threat While Attacking"]
-    row["PXT / 90"] = (row["PXT Attack"] / row["Minutes"] * 90) if row["Minutes"] else 0.0
-    row["Net / 90"] = (row["Net Threat"] / row["Minutes"] * 90) if row["Minutes"] else 0.0
-    row["Receiving PXT / 90"] = (row["Receiving PXT"] / row["Minutes"] * 90) if row["Minutes"] else 0.0
-    row["Shot / 90"] = (row.get("Shot", 0.0) / row["Minutes"] * 90) if row["Minutes"] else 0.0
-    row["Pass / 90"] = (row.get("Pass", 0.0) / row["Minutes"] * 90) if row["Minutes"] else 0.0
-    row["Dribble / 90"] = (row.get("Dribble", 0.0) / row["Minutes"] * 90) if row["Minutes"] else 0.0
-    row["Minutes"] = round(row["Minutes"], 0)
+    for output, source in {
+        "Attack PxT / 90": "PXT Attack",
+        "Net / 90": "Net Threat",
+        "Receiving PXT / 90": "Receiving PXT",
+        "Shot / 90": "Shot",
+        "Pass / 90": "Pass",
+        "Dribble / 90": "Dribble",
+    }.items():
+        row[output] = per_90(float(row.get(source, 0.0)), float(row["Minutes"]))
     for key, value in list(row.items()):
         if isinstance(value, float) and key != "Minutes":
             row[key] = round(value, 4)
@@ -178,11 +149,12 @@ def _semantic_band(percentile: float) -> str:
     return "weak"
 
 
+# UI Assistance
 def _rank_label(rank: int, total: int) -> str:
     return f"{rank} / {total}"
 
 
-# SEASON AGGREGATION AND COMPARISON — AUTHORSHIP TO VERIFY
+# Data Processing Assistance
 @st.cache_data(show_spinner=False)
 def season_player_threat_rows(
     match_ids: tuple[int, ...],
@@ -247,20 +219,18 @@ def season_team_threat_rows(
             )
             row["_Match IDs"].add(match_id)
             for player in side.get("players", []):
-                kpis = _player_kpi_map(player)
+                kpis = player_kpi_values(player)
                 row["PXT Attack"] += kpis[KPI_PXT_ATTACK]
                 row["Opponent Threat While Attacking"] += kpis[KPI_DEF_PXT_ATTACK]
-                row["Shot"] += kpis[KPI_PXT_SHOT]
-                row["Pass"] += kpis[KPI_PXT_PASS]
-                row["Dribble"] += kpis[KPI_PXT_DRIBBLE]
-                row["Set Piece"] += kpis[KPI_PXT_SETPIECE]
+                for label in ("Shot", "Pass", "Dribble", "Set Piece"):
+                    row[label] += kpis[ATTACK_SOURCE_KPIS[label]]
 
     rows = []
     for row in team_totals.values():
         matches = len(row.pop("_Match IDs"))
         row["Matches"] = matches
         row["Net Threat"] = row["PXT Attack"] - row["Opponent Threat While Attacking"]
-        row["PXT / Match"] = row["PXT Attack"] / matches if matches else 0.0
+        row["Attack PxT / Match"] = row["PXT Attack"] / matches if matches else 0.0
         row["Net / Match"] = row["Net Threat"] / matches if matches else 0.0
         row["Shot / Match"] = row["Shot"] / matches if matches else 0.0
         row["Pass / Match"] = row["Pass"] / matches if matches else 0.0
@@ -271,11 +241,11 @@ def season_team_threat_rows(
                 row[key] = round(value, 4)
         rows.append(row)
 
-    rows.sort(key=lambda item: (-float(item["PXT / Match"]), -float(item["Net / Match"]), item["Team"]))
+    rows.sort(key=lambda item: (-float(item["Attack PxT / Match"]), -float(item["Net / Match"]), item["Team"]))
     for rank, row in enumerate(rows, start=1):
-        row["PXT Rank"] = rank
+        row["Attack PxT Rank"] = rank
     metric_specs = [
-        ("PXT / Match", "Team PXT"),
+        ("Attack PxT / Match", "Team Attack PxT"),
         ("Net / Match", "Team Net"),
         ("Shot / Match", "Shot PXT"),
         ("Pass / Match", "Pass PXT"),
@@ -311,31 +281,37 @@ def _add_position_percentiles(
     net_groups: dict[str, list[float]] = defaultdict(list)
     for row in eligible:
         group = row["Position Group"]
-        pxt_groups[group].append(float(row["PXT / 90"]))
+        pxt_groups[group].append(float(row["Attack PxT / 90"]))
         net_groups[group].append(float(row["Net / 90"]))
 
     enriched = []
     for row in freiburg_rows:
         copy = dict(row)
         group = copy["Position Group"]
-        copy["PXT / 90 Percentile Rank"] = percentile_rank(float(copy["PXT / 90"]), pxt_groups[group])
-        copy["PXT / 90 Value Score"] = minmax_score(float(copy["PXT / 90"]), pxt_groups[group])
+        copy["Attack PxT / 90 Percentile Rank"] = percentile_rank(
+            float(copy["Attack PxT / 90"]), pxt_groups[group]
+        )
+        copy["Attack PxT / 90 Value Score"] = minmax_score(
+            float(copy["Attack PxT / 90"]), pxt_groups[group]
+        )
         copy["Net / 90 Percentile Rank"] = percentile_rank(float(copy["Net / 90"]), net_groups[group])
         copy["Net / 90 Value Score"] = minmax_score(float(copy["Net / 90"]), net_groups[group])
-        copy["PXT / 90 Meaning"] = _semantic_band(float(copy["PXT / 90 Percentile Rank"]))
+        copy["Attack PxT / 90 Meaning"] = _semantic_band(
+            float(copy["Attack PxT / 90 Percentile Rank"])
+        )
         enriched.append(copy)
     return enriched
 
 
-# AI-ASSISTED STREAMLIT PRESENTATION / GENERATED TEXT
+# UI Assistance
 def _render_metric_guide() -> None:
-    st.markdown("**How To Read PXT**")
+    st.markdown("**How to read attack-phase PxT**")
     st.markdown(
-        "PXT estimates how much an action changes the chance that the team will eventually score. "
-        "Positive own-team PXT is good because the action moved the team into a more threatening state. "
-        "Negative own-team PXT is bad because the action reduced attacking threat. Per-90 values are usually more "
+        "Impect's `PXT Attack` KPI measures influence on a team's goal threat while that team is attacking. "
+        "Positive attack-phase PxT is good because it increased attacking threat; negative values reduced it. "
+        "Per-90 values are usually more "
         "meaningful than raw totals because players have different minutes and positions. Percentile Rank shows "
-        "peer standing; Value Score shows distance between the lowest and highest actual PXT values."
+        "peer standing; Value Score shows distance between the lowest and highest actual PxT values."
     )
     st.dataframe(
         [
@@ -360,13 +336,18 @@ def _render_metric_guide() -> None:
                 "Positive Means": "Set-piece situations increased attacking threat.",
             },
             {
-                "Category": "Receiving PXT",
+                "Category": "Receiving PxT",
                 "Meaning": "Threat gained by receiving the ball; shown separately to avoid double-counting passer credit.",
                 "Positive Means": "The player got into valuable receiving locations.",
             },
             {
+                "Category": "Fouled / passive PxT",
+                "Meaning": "Attributable threat from being fouled or from responsibility-based off-ball influence.",
+                "Positive Means": "The player increased own-team threat without a tagged on-ball action.",
+            },
+            {
                 "Category": "Net Threat",
-                "Meaning": "Own PXT minus opponent threat while Freiburg were attacking.",
+                "Meaning": "Attack-phase PxT minus opponent threat while Freiburg were attacking.",
                 "Positive Means": "Freiburg created threat without giving much transition threat back.",
             },
         ],
@@ -377,7 +358,7 @@ def _render_metric_guide() -> None:
 
 def _freiburg_category_context(freiburg_team: dict[str, Any], team_count: int) -> list[dict[str, Any]]:
     specs = [
-        ("Overall PXT", "PXT / Match", "Team PXT"),
+        ("Attack-phase PxT", "Attack PxT / Match", "Team Attack PxT"),
         ("Net Threat", "Net / Match", "Team Net"),
         ("Shot PXT", "Shot / Match", "Shot PXT"),
         ("Pass PXT", "Pass / Match", "Pass PXT"),
@@ -413,11 +394,11 @@ def _render_inferences(
     top_player = ranked_rows[0] if ranked_rows else None
     bullets = [
         (
-            f"Freiburg's overall attacking PXT is {freiburg_team['PXT / Match']:.2f} per match, "
-            f"ranking {_rank_label(int(freiburg_team['Team PXT Rank']), team_count)} in the league "
-            f"({int(freiburg_team['Team PXT Percentile Rank'])}th percentile rank, "
-            f"{int(freiburg_team['Team PXT Value Score'])} value score, "
-            f"{_semantic_band(float(freiburg_team['Team PXT Percentile Rank']))})."
+            f"Freiburg's attack-phase PxT is {freiburg_team['Attack PxT / Match']:.2f} per match, "
+            f"ranking {_rank_label(int(freiburg_team['Team Attack PxT Rank']), team_count)} in the league "
+            f"({int(freiburg_team['Team Attack PxT Percentile Rank'])}th percentile rank, "
+            f"{int(freiburg_team['Team Attack PxT Value Score'])} value score, "
+            f"{_semantic_band(float(freiburg_team['Team Attack PxT Percentile Rank']))})."
         ),
         (
             f"The strongest source relative to the league is {strongest['Metric']} "
@@ -431,9 +412,10 @@ def _render_inferences(
     if top_player:
         bullets.append(
             f"Among Freiburg players meeting the minutes filter, {top_player['Player']} grades highest by "
-            f"PXT / 90 percentile within his position group "
-            f"({int(top_player['PXT / 90 Percentile Rank'])}th percentile rank, "
-            f"{int(top_player['PXT / 90 Value Score'])} value score, {top_player['PXT / 90 Meaning']})."
+            f"attack-phase PxT / 90 percentile within his position group "
+            f"({int(top_player['Attack PxT / 90 Percentile Rank'])}th percentile rank, "
+            f"{int(top_player['Attack PxT / 90 Value Score'])} value score, "
+            f"{top_player['Attack PxT / 90 Meaning']})."
         )
     st.markdown("**What This Suggests**")
     st.markdown("\n".join(f"- {item}" for item in bullets))
@@ -462,17 +444,19 @@ def render_threat_page(
     st.divider()
 
     metric_cols = st.columns(4)
-    metric_cols[0].metric("Team PXT / Match", f"{freiburg_team['PXT / Match']:.2f}")
-    metric_cols[1].metric("League Rank", _rank_label(int(freiburg_team["Team PXT Rank"]), len(team_rows)))
-    metric_cols[2].metric("Percentile Rank", f"{freiburg_team['Team PXT Percentile Rank']:.0f}")
+    metric_cols[0].metric("Attack-phase PxT / match", f"{freiburg_team['Attack PxT / Match']:.2f}")
+    metric_cols[1].metric(
+        "League rank", _rank_label(int(freiburg_team["Team Attack PxT Rank"]), len(team_rows))
+    )
+    metric_cols[2].metric("Percentile rank", f"{freiburg_team['Team Attack PxT Percentile Rank']:.0f}")
     metric_cols[3].metric("Net / Match", f"{freiburg_team['Net / Match']:.2f}")
 
-    st.markdown("**Freiburg vs League By Threat Source**")
+    st.markdown("**Freiburg vs league by threat source**")
     st.dataframe(_freiburg_category_context(freiburg_team, len(team_rows)), hide_index=True, width="stretch")
 
-    with st.expander("Freiburg total sources", expanded=False):
+    with st.expander("Freiburg selected sources", expanded=False):
         source_cols = st.columns(4)
-        source_cols[0].metric("Total PXT Attack", f"{totals['PXT Attack']:.2f}")
+        source_cols[0].metric("Attack-phase PxT", f"{totals['PXT Attack']:.2f}")
         source_cols[1].metric("Net Threat", f"{totals['Net Threat']:.2f}")
         source_cols[2].metric("Shot PXT", f"{totals['Shot']:.2f}")
         source_cols[3].metric("Pass PXT", f"{totals['Pass']:.2f}")
@@ -481,9 +465,9 @@ def render_threat_page(
     ranking_metric = st.selectbox(
         "Rank players by",
         [
-            "PXT / 90 Percentile Rank",
-            "PXT / 90",
-            "PXT / 90 Value Score",
+            "Attack PxT / 90 Percentile Rank",
+            "Attack PxT / 90",
+            "Attack PxT / 90 Value Score",
             "Net / 90 Percentile Rank",
             "Net / 90",
             "Net / 90 Value Score",
@@ -521,15 +505,15 @@ def render_threat_page(
         "Rank",
         "Player",
         "Position Group",
-        "PXT / 90 Percentile Rank",
-        "PXT / 90 Value Score",
-        "PXT / 90 Meaning",
+        "Attack PxT / 90 Percentile Rank",
+        "Attack PxT / 90 Value Score",
+        "Attack PxT / 90 Meaning",
         "Position",
         "Matches",
         "Minutes",
         "PXT Attack",
         "Net Threat",
-        "PXT / 90",
+        "Attack PxT / 90",
         "Net / 90",
         "Net / 90 Percentile Rank",
         "Net / 90 Value Score",
@@ -542,6 +526,8 @@ def render_threat_page(
         "Shot",
         "Set Piece",
         "Ball Win",
+        "Fouled",
+        "Passive",
         "Receiving PXT",
         "Opponent Threat While Attacking",
     ]
@@ -549,17 +535,18 @@ def render_threat_page(
         [{column: row.get(column, "") for column in display_columns} for row in ranked_rows],
         hide_index=True,
         width="stretch",
+        column_config={"Minutes": st.column_config.NumberColumn("Minutes", format="%.0f")},
     )
 
-    with st.expander("League team PXT context", expanded=False):
+    with st.expander("League attack-phase PxT context", expanded=False):
         team_display_columns = [
-            "PXT Rank",
+            "Attack PxT Rank",
             "Team",
             "Matches",
             "PXT Attack",
-            "PXT / Match",
-            "Team PXT Percentile Rank",
-            "Team PXT Value Score",
+            "Attack PxT / Match",
+            "Team Attack PxT Percentile Rank",
+            "Team Attack PxT Value Score",
             "Net Threat",
             "Net / Match",
             "Team Net Percentile Rank",
@@ -589,11 +576,11 @@ def render_threat_page(
 
     with st.expander("Metric notes", expanded=False):
         st.markdown(
-            "`PXT Attack` is Impect's own attacking-phase goal-threat change KPI. "
+            "`PXT Attack` is Impect's attacking-phase goal-threat change KPI, not total team PxT. "
             "`Net Threat` subtracts opponent goal-threat change while Freiburg are attacking. "
             "`Percentile Rank` shows peer standing: 100 is the best-ranked value in the comparison group and 0 is "
-            "the lowest-ranked value. `Value Score` rescales the actual PXT value between the comparison group's "
+            "the lowest-ranked value. `Value Score` rescales the actual PxT value between the comparison group's "
             "minimum and maximum, so it shows distance from the top producer. "
-            "The player table is sorted by PXT / 90 percentile rank by default. "
-            "`Receiving PXT` is shown separately because adding it to pass/set-piece PXT can double-count credit."
+            "The player table is sorted by attack-phase PxT / 90 percentile rank by default. "
+            "`Receiving PxT` is shown separately because adding it to pass/set-piece PxT can double-count credit."
         )

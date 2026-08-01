@@ -1,11 +1,8 @@
-# PROVENANCE: AI-ASSISTED — DATA CONFIGURATION / KPI IDENTIFIERS
-
-from __future__ import annotations
-
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 
+# Data Processing Assistance
 BASE_DIR = Path(__file__).resolve().parents[1]
 DATA_ROOT = BASE_DIR.parent / "Exam Data" / "open-data" / "data"
 ITERATION_ID = 743
@@ -22,6 +19,7 @@ KPI_SHOTS_ON_TARGET = 1515
 KPI_YELLOW_CARD = 1637
 KPI_SECOND_YELLOW_CARD = 1638
 
+KPI_POSTSHOT_XG = 1401
 KPI_PXT_PASS = 1404
 KPI_PXT_DRIBBLE = 1405
 KPI_PXT_SETPIECE = 1406
@@ -40,6 +38,9 @@ KPI_OPP_PXT_BALL_WIN = 1418
 KPI_OPP_PXT_FOUL = 1419
 KPI_OPP_PXT_NO_VIDEO = 1420
 KPI_OPP_PXT_BALL_LOSS = 1421
+KPI_PXT_PASSIVE = 1531
+KPI_PXT_OTHER = 1532
+KPI_PXT_FOULED = 1533
 KPI_PXT_ATTACK = 1633
 KPI_PXT_DEFEND = 1634
 KPI_DEF_PXT_ATTACK = 1635
@@ -51,3 +52,23 @@ KPI_DEF_PXT_BLOCK = 1525
 KPI_DEF_PXT_SHOT = 1526
 KPI_DEF_PXT_BALL_WIN = 1527
 KPI_DEF_PXT_ACTIVE = 1534
+
+# These seven KPIs belong to the player tagged on the source event. They are
+# useful for action maps, but they are not Impect's complete team PxT total.
+TAGGED_ACTION_PXT_KPIS = {
+    KPI_PXT_PASS: "Pass",
+    KPI_PXT_DRIBBLE: "Dribble",
+    KPI_PXT_SETPIECE: "Set Piece",
+    KPI_PXT_BLOCK: "Block",
+    KPI_PXT_SHOT: "Shot",
+    KPI_PXT_BALL_WIN: "Ball Win",
+    KPI_PXT_FOUL: "Foul",
+}
+
+# Player evaluation also keeps responsibility-based passive PxT and threat
+# earned by being fouled. The PDF only recommends excluding no-video/other PxT.
+PLAYER_ATTRIBUTABLE_PXT_KPIS = {
+    **TAGGED_ACTION_PXT_KPIS,
+    KPI_PXT_PASSIVE: "Passive",
+    KPI_PXT_FOULED: "Fouled",
+}

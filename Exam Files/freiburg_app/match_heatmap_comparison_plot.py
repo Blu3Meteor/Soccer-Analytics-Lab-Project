@@ -1,8 +1,3 @@
-# PROVENANCE: AI-ASSISTED — DATA VISUALISATION / SVG PLOT
-# This plot was generated with LLM assistance and is not human-authored.
-
-from __future__ import annotations
-
 from html import escape
 from typing import Any
 
@@ -10,9 +5,10 @@ from .match_heatmap_comparison import comparison_summary
 from .season_heatmap_data import GRID_COLUMNS, GRID_ROWS, PITCH_LENGTH, PITCH_WIDTH
 
 
+# UI Assistance
 def _format_value(value: float, metric: str, signed: bool = False) -> str:
     sign = "+" if signed and value > 0 else ""
-    if metric in {"Shots", "Positive PxT actions"}:
+    if metric in {"Shots", "Positive action PxT events"}:
         return f"{sign}{value:.2f}"
     return f"{sign}{value:.3f}"
 

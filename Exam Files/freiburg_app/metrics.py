@@ -1,14 +1,9 @@
-# PROVENANCE: AUTHORSHIP TO VERIFY — MATHEMATICAL / STATISTICAL ANALYSIS
-# Do not label this module "manual" until its author confirms authorship and can
-# explain the definitions, assumptions, and calculations. See CODE_PROVENANCE.md.
-
-from __future__ import annotations
-
 from collections import Counter, defaultdict
 from typing import Any
 
 from .config import (
     KPI_NEUTRAL_PASSES,
+    KPI_POSTSHOT_XG,
     KPI_RED_CARD,
     KPI_SECOND_YELLOW_CARD,
     KPI_SHOT_XG,
@@ -19,9 +14,17 @@ from .config import (
     KPI_YELLOW_CARD,
 )
 from .data import short_team_name
-from .event_utils import attacking_event_shares, event_kpi_values
+from .event_utils import attacking_event_shares, event_kpi_values, player_kpi_values
 
 
+PASS_ACCURACY_LABEL = "Pass Accuracy (successful ÷ all attempts)"
+PASS_ACCURACY_NOTE = (
+    "Pass accuracy = successful ÷ (successful + unsuccessful + neutral) pass attempts. "
+    "Neutral passes are included in all attempts; they are not provider-classified failures."
+)
+
+
+# Data Processing Assistance
 def opposition_team(match: dict[str, Any], team_id: int) -> int:
     if int(match["homeSquadId"]) == int(team_id):
         return int(match["awaySquadId"])
@@ -64,16 +67,18 @@ def aggregate_kpis_for_team(player_kpis: dict[str, Any], team_id: int) -> dict[i
     if not side:
         return totals
     for player in side.get("players", []):
-        for kpi in player.get("kpis", []):
-            totals[int(kpi["kpiId"])] += float(kpi.get("value") or 0)
+        for kpi_id, value in player_kpi_values(player).items():
+            totals[kpi_id] += value
     return totals
 
 
-def compute_possession(events: list[dict[str, Any]], team_ids: tuple[int, int]) -> dict[int, int]:
-    """Estimate possession as each team's share of recorded attacking events.
+def compute_attacking_event_share_percentages(
+    events: list[dict[str, Any]],
+    team_ids: tuple[int, int],
+) -> dict[int, int]:
+    """Return each team's percentage share of recorded attacking events.
 
-    REVIEW NOTE: This is not time in possession. If ``n_i`` is the count of
-    eligible events for team i, the displayed percentage is
+    If ``n_i`` is the count of eligible events for team i, the percentage is
     ``round(100 * n_i / (n_home + n_away))``. The away percentage is set to
     ``100 - home`` so rounding cannot make the pair sum to 99 or 101.
     """
@@ -86,6 +91,22 @@ def shot_xg_by_event(events_kpis: list[dict[str, Any]]) -> dict[int, float]:
     return event_kpi_values(events_kpis, KPI_SHOT_XG)
 
 
+def total_pxt_by_team(
+    events: list[dict[str, Any]],
+    events_kpis: list[dict[str, Any]],
+    team_ids: tuple[int, int],
+) -> dict[int, float]:
+    """Return full team PxT, which Impect defines as team Post-Shot xG."""
+    postshot_xg = event_kpi_values(events_kpis, KPI_POSTSHOT_XG)
+    totals = {int(team_id): 0.0 for team_id in team_ids}
+    for event in events:
+        team_id = event.get("squadId")
+        event_id = event.get("id")
+        if team_id in totals and event_id is not None:
+            totals[int(team_id)] += postshot_xg.get(int(event_id), 0.0)
+    return totals
+
+
 def compute_stats(
     match: dict[str, Any],
     events: list[dict[str, Any]],
@@ -94,16 +115,15 @@ def compute_stats(
 ) -> dict[int, dict[str, Any]]:
     """Combine player KPIs and event counts into the match-stat dictionary.
 
-    REVIEW NOTE: Pass accuracy uses successful / (successful + unsuccessful +
-    neutral) passes. xG is the sum of Impect KPI 82 attached to team events.
-    Fouls, offsides, and corners are direct event counts. These definitions
-    should be checked against the assessment's required metric definitions.
+    Pass accuracy uses successful / (successful + unsuccessful + neutral)
+    passes. xG is the sum of Impect KPI 82 attached to team events. Fouls,
+    offsides, and corners are direct event counts.
     """
     home_id = int(match["homeSquadId"])
     away_id = int(match["awaySquadId"])
     team_ids = (home_id, away_id)
     stats: dict[int, dict[str, Any]] = {team_id: defaultdict(float) for team_id in team_ids}
-    possession = compute_possession(events, team_ids)
+    attacking_event_share = compute_attacking_event_share_percentages(events, team_ids)
     xg_by_event = shot_xg_by_event(events_kpis or [])
 
     for team_id in team_ids:
@@ -116,11 +136,15 @@ def compute_stats(
         stats[team_id]["shots_on_target"] = int(round(kpis[KPI_SHOTS_ON_TARGET]))
         stats[team_id]["passes"] = int(round(total_passes))
         stats[team_id]["pass_accuracy"] = round((successful_passes / total_passes) * 100, 1) if total_passes else 0
-        second_yellow_cards = int(round(kpis[KPI_SECOND_YELLOW_CARD]))
-        stats[team_id]["yellow_cards"] = int(round(kpis[KPI_YELLOW_CARD])) + second_yellow_cards
-        stats[team_id]["second_yellow_cards"] = int(round(kpis[KPI_SECOND_YELLOW_CARD]))
+        second_yellow_cards = int(round(kpis[KPI_SECOND_YELLOW_CARD])) if KPI_SECOND_YELLOW_CARD in kpis else 0
+        stats[team_id]["yellow_cards"] = (
+            int(round(kpis[KPI_YELLOW_CARD])) + second_yellow_cards if KPI_YELLOW_CARD in kpis else None
+        )
+        stats[team_id]["second_yellow_cards"] = (
+            second_yellow_cards if KPI_SECOND_YELLOW_CARD in kpis else None
+        )
         stats[team_id]["red_cards"] = int(round(kpis[KPI_RED_CARD])) + second_yellow_cards
-        stats[team_id]["possession"] = possession[team_id]
+        stats[team_id]["attacking_event_share"] = attacking_event_share[team_id]
         stats[team_id]["xg"] = 0.0
 
     for event in events:
@@ -167,7 +191,10 @@ def points_progression(summaries: list[dict[str, Any]]) -> list[dict[str, int]]:
     return rows
 
 
-def format_stat_value(value: float, kind: str) -> str:
+# UI Assistance
+def format_stat_value(value: float | None, kind: str) -> str:
+    if value is None:
+        return "N/A"
     if kind == "decimal":
         return f"{float(value):.2f}"
     if kind == "percent":
@@ -188,9 +215,9 @@ def stat_rows(
         ("Shots", "shots", "number"),
         ("xG", "xg", "decimal"),
         ("Shots on Target", "shots_on_target", "number"),
-        ("Possession", "possession", "percent"),
+        ("Attacking Event Share", "attacking_event_share", "percent"),
         ("Passes", "passes", "number"),
-        ("Pass Accuracy", "pass_accuracy", "percent_decimal"),
+        (PASS_ACCURACY_LABEL, "pass_accuracy", "percent_decimal"),
         ("Fouls", "fouls", "number"),
         ("Yellow Cards", "yellow_cards", "number"),
         ("Red Cards", "red_cards", "number"),

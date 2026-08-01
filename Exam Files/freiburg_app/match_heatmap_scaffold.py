@@ -1,8 +1,3 @@
-# PROVENANCE: AI-ASSISTED — DATA DISPLAY / STREAMLIT WEBSITE
-# The imported comparison and plots are also explicitly marked AI-assisted.
-
-from __future__ import annotations
-
 from typing import Any
 
 import streamlit as st
@@ -19,6 +14,7 @@ from .season_heatmap_data import (
 )
 
 
+# UI Assistance
 def render_match_heatmap_scaffold(
     summaries: list[dict[str, Any]],
     selected_match: dict[str, Any],
@@ -72,7 +68,7 @@ def render_match_heatmap_scaffold(
         )
         metric_prefix = "Opponent"
     else:
-        st.markdown("**Per-match shot and PxT comparison**")
+        st.markdown("**Per-match shot and selected action PxT comparison**")
         st.caption(
             "Each block compares the selected match with Freiburg's average in the same block across the other 33 "
             "matches. Positive values are above Freiburg's normal level; negative values are below it."
@@ -82,21 +78,21 @@ def render_match_heatmap_scaffold(
     with st.container(horizontal=True):
         st.metric(f"{metric_prefix} shots", int(match_data["shots"]), border=True)
         st.metric(f"{metric_prefix} xG", f'{match_data["total_xg"]:.2f}', border=True)
-        st.metric(f"{metric_prefix} positive PxT actions", int(match_data["actions"]), border=True)
-        st.metric(f"{metric_prefix} positive PxT", f'{match_data["total_pxt"]:.2f}', border=True)
+        st.metric(f"{metric_prefix} positive action PxT events", int(match_data["actions"]), border=True)
+        st.metric(f"{metric_prefix} positive action PxT", f'{match_data["total_pxt"]:.2f}', border=True)
 
     view = st.segmented_control(
         "Comparison measure",
         ["Value", "Volume"],
         default="Value",
         key=f"match_heatmap_measure_{match_id}",
-        help="Value compares xG and positive PxT. Volume compares shot and positive-action counts.",
+        help="Value compares xG and positive PxT from seven tagged-action sources. Volume compares event counts.",
         width="stretch",
     )
     if view == "Volume":
-        left_metric, right_metric = "Shots", "Positive PxT actions"
+        left_metric, right_metric = "Shots", "Positive action PxT events"
     else:
-        left_metric, right_metric = "xG", "Positive PxT"
+        left_metric, right_metric = "xG", "Positive action PxT"
 
     left_comparison = build_match_vs_normal_comparison(match_id, source_rows, left_metric)
     right_comparison = build_match_vs_normal_comparison(match_id, source_rows, right_metric)
@@ -117,7 +113,7 @@ def render_match_heatmap_scaffold(
             )
     with plot_columns[1]:
         with st.container(border=True, height="stretch"):
-            st.subheader("Positive PxT allowed" if is_defending else "Positive PxT comparison")
+            st.subheader("Positive action PxT allowed" if is_defending else "Positive action PxT comparison")
             st.markdown(
                 render_match_comparison_svg(
                     right_comparison,

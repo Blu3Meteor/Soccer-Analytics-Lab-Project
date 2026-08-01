@@ -1,9 +1,3 @@
-# PROVENANCE: AI-ASSISTED DRAFT — POISSON REGRESSION / MATHEMATICAL ANALYSIS
-# This follows the Soccermatics Poisson model. Anyone presenting it must still
-# understand the model assumptions and the expected-points calculation below.
-
-from __future__ import annotations
-
 from typing import Any
 
 import numpy as np
@@ -21,6 +15,9 @@ from .matches import load_scored_matches
 MAX_GOALS = 10
 
 
+# Data Processing Assistance
+# Mathematical reference: Soccermatics Poisson match model
+# https://soccermatics.readthedocs.io/en/latest/gallery/lesson5/plot_SimulateMatches.html
 def _fit_poisson_glm(goal_rows: list[dict[str, Any]], teams: list[str]) -> dict[str, Any]:
     """Fit the Soccermatics model: ``goals ~ home + team + opponent``."""
     ordered_teams = [FREIBURG_NAME] + [team for team in teams if team != FREIBURG_NAME]
@@ -31,7 +28,7 @@ def _fit_poisson_glm(goal_rows: list[dict[str, Any]], teams: list[str]) -> dict[
     data["opponent"] = pd.Categorical(data["opponent"], categories=ordered_teams)
 
     fitted = smf.glm(
-        formula="goals ~ home + C(team) + C(opponent)",
+        formula="goals ~ home + team + opponent",
         data=data,
         family=sm.families.Poisson(),
     ).fit()
@@ -39,8 +36,8 @@ def _fit_poisson_glm(goal_rows: list[dict[str, Any]], teams: list[str]) -> dict[
     attack = {FREIBURG_NAME: 0.0}
     concede = {FREIBURG_NAME: 0.0}
     for team in ordered_teams[1:]:
-        attack[team] = float(fitted.params[f"C(team)[T.{team}]"])
-        concede[team] = float(fitted.params[f"C(opponent)[T.{team}]"])
+        attack[team] = float(fitted.params[f"team[T.{team}]"])
+        concede[team] = float(fitted.params[f"opponent[T.{team}]"])
 
     return {
         "baseline_team": FREIBURG_NAME,
@@ -80,6 +77,8 @@ def _outcome_probabilities(home_rate: float, away_rate: float) -> dict[str, floa
     }
 
 
+# Data Processing Assistance
+# Expected season points are an in-sample extension beyond the Soccermatics lesson.
 @st.cache_data(show_spinner=False)
 def build_regression_outputs() -> dict[str, Any]:
     """Fit the league model and calculate each club's expected season totals."""

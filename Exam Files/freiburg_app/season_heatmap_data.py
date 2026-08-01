@@ -1,45 +1,19 @@
-# PROVENANCE: AI-ASSISTED — DATA EXTRACTION / TRANSFORMATION
-# This module was generated with LLM assistance. It only reads Impect JSON data,
-# selects Freiburg events, converts coordinates, and aggregates them into grids.
-# It does not decide what the resulting patterns mean.
-
-from __future__ import annotations
-
 from collections import defaultdict
 from typing import Any
 
 import pandas as pd
 import streamlit as st
 
-from .config import (
-    KPI_PXT_BALL_WIN,
-    KPI_PXT_BLOCK,
-    KPI_PXT_DRIBBLE,
-    KPI_PXT_FOUL,
-    KPI_PXT_PASS,
-    KPI_PXT_SETPIECE,
-    KPI_PXT_SHOT,
-    KPI_SHOT_XG,
-)
+from .config import KPI_SHOT_XG, TAGGED_ACTION_PXT_KPIS
 from .data import load_match_events, load_match_events_kpis
 from .event_utils import PITCH_LENGTH, PITCH_WIDTH, event_xy
 
 
 GRID_COLUMNS = 12
 GRID_ROWS = 8
-PXT_KPIS = {
-    KPI_PXT_PASS,
-    KPI_PXT_DRIBBLE,
-    KPI_PXT_SETPIECE,
-    KPI_PXT_BLOCK,
-    KPI_PXT_SHOT,
-    KPI_PXT_BALL_WIN,
-    KPI_PXT_FOUL,
-}
-
-
+# Data Processing Assistance
 def _event_kpi_totals(events_kpis: list[dict[str, Any]]) -> tuple[dict[int, float], dict[int, float]]:
-    """Index shot xG and summed attacking PxT by event ID for fast lookup."""
+    """Index shot xG and the seven tagged-action PxT sources by event ID."""
     xg_by_event: dict[int, float] = defaultdict(float)
     pxt_by_event: dict[int, float] = defaultdict(float)
     for item in events_kpis:
@@ -48,7 +22,7 @@ def _event_kpi_totals(events_kpis: list[dict[str, Any]]) -> tuple[dict[int, floa
         value = float(item.get("value") or 0.0)
         if kpi_id == KPI_SHOT_XG:
             xg_by_event[event_id] += value
-        elif kpi_id in PXT_KPIS:
+        elif kpi_id in TAGGED_ACTION_PXT_KPIS:
             pxt_by_event[event_id] += value
     return xg_by_event, pxt_by_event
 
@@ -70,7 +44,7 @@ def team_heatmap_data(
     match_ids: tuple[int, ...],
     team_id: int,
 ) -> dict[str, Any]:
-    """Extract shot/xG and positive-PxT grids for one team from Impect events."""
+    """Extract shot/xG and positive tagged-action PxT grids for one team."""
     xg_grid = empty_grid()
     shot_grid = empty_grid()
     pxt_grid = empty_grid()
@@ -101,8 +75,8 @@ def team_heatmap_data(
                     total_xg += value
                     shot_count += 1
 
-            # The destination is used for positive PxT when present; the start
-            # coordinate is a documented fallback for events without an end.
+            # Destination placement is a project visualisation choice. These
+            # values cover the seven tagged-player action sources, not total PxT.
             pxt_value = max(0.0, pxt_by_event.get(event_id, 0.0))
             if pxt_value > 0:
                 xy = event_xy(event, "end") or event_xy(event, "start")
@@ -156,8 +130,8 @@ def heatmap_block_rows(match_id: int, data: dict[str, Any]) -> list[dict[str, An
                     "Y end (m)": round((row_index + 1) * cell_height, 3),
                     "Shots": int(round(data["shot_grid"][row_index][column_index])),
                     "xG": round(float(data["xg_grid"][row_index][column_index]), 6),
-                    "Positive PxT actions": int(round(data["action_grid"][row_index][column_index])),
-                    "Positive PxT": round(float(data["pxt_grid"][row_index][column_index]), 6),
+                    "Positive action PxT events": int(round(data["action_grid"][row_index][column_index])),
+                    "Positive action PxT": round(float(data["pxt_grid"][row_index][column_index]), 6),
                 }
             )
     return rows

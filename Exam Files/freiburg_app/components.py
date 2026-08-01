@@ -1,7 +1,3 @@
-# PROVENANCE: AI-ASSISTED — REUSABLE WEBSITE COMPONENTS / PRESENTATION
-
-from __future__ import annotations
-
 from html import escape
 from typing import Any
 
@@ -10,15 +6,13 @@ import streamlit as st
 from .data import compact_matchday, format_date, squad_logo_url, team_code, team_name
 
 
+# UI Assistance
 def result_word(code: str) -> str:
     return {"W": "Win", "D": "Draw", "L": "Loss"}.get(code, code)
 
 
 def query_param_value(name: str) -> str | None:
-    if hasattr(st, "query_params"):
-        raw_value = st.query_params.get(name)
-    else:
-        raw_value = st.experimental_get_query_params().get(name)
+    raw_value = st.query_params.get(name)
     if isinstance(raw_value, list):
         raw_value = raw_value[0] if raw_value else None
     return str(raw_value) if raw_value is not None else None
@@ -87,11 +81,11 @@ def render_sidebar_menu(current_page: str, selected_match_id: int) -> str:
         '</a>'
         f'<a class="sidebar-link{details_active}" href="{details_href}" target="_self">'
         '<span class="sidebar-link-title">Match Details</span>'
-        '<span class="sidebar-link-meta">Networks, xT, Events</span>'
+        '<span class="sidebar-link-meta">Networks, PxT, events</span>'
         '</a>'
         f'<a class="sidebar-link{heatmaps_active}" href="./?page=season_heatmaps" target="_self">'
         '<span class="sidebar-link-title">Season Heatmaps</span>'
-        '<span class="sidebar-link-meta">Shot xG and positive PxT</span>'
+        '<span class="sidebar-link-meta">Shot xG and action PxT</span>'
         '</a>'
         f'<a class="sidebar-link{rankings_active}" href="./?page=player_rankings" target="_self">'
         '<span class="sidebar-link-title">Player Rankings</span>'
@@ -103,7 +97,7 @@ def render_sidebar_menu(current_page: str, selected_match_id: int) -> str:
         '</a>'
         f'<a class="sidebar-link{threat_active}" href="./?page=threat" target="_self">'
         '<span class="sidebar-link-title">Attacking Threat</span>'
-        '<span class="sidebar-link-meta">Season Player pxT Ranks</span>'
+        '<span class="sidebar-link-meta">Season player PxT ranks</span>'
         '</a>'
         '</div>'
         '<div class="sidebar-footnote">Data: ImpectAPI/open-data</div>'
