@@ -107,10 +107,11 @@ The dashboard now has six dedicated sidebar views.
 
 ### Player Rankings
 
-- League-wide player comparison split into forwards, midfielders, defenders, and goalkeepers.
+- League-wide player comparison split into forwards, midfielders, wingbacks, defenders, and goalkeepers.
 - Adjustable minimum-minutes filter.
 - Position-specific metric sets and Freiburg player tables.
 - Per-90 and attacking-event-share-adjusted counting metrics, with rate statistics retained as rates.
+- Wingbacks are compared with other wingbacks using Attack PxT, expected shot assists, successful final-third passes, final-third receptions, Threat Prevented, ball wins, interceptions, and Ball Security.
 - Higher Attack PxT ranks mean more attacking-phase threat added. Raw defensive PxT measures threat conceded, so it is sign-inverted and displayed as **Threat Prevented** before ranking; higher displayed values remain better.
 - Goalkeeper PSxG and goals conceded are assigned to the goalkeeper active at the event time, including goalkeeper substitutions and own goals.
 - Expandable player radar charts based on within-position percentile ranks.

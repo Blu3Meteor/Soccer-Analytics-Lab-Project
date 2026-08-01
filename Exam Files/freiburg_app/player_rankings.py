@@ -120,6 +120,21 @@ RADAR_CONFIGS: dict[str, list[dict[str, Any]]] = {
         {"label": "xShot Assists", "key": "Expected Shot Assists", "kind": "attack"},
         {"label": "Ball Security", "key": "Ball Security", "kind": "rate"},
     ],
+    "Wingbacks": [
+        {"label": "Attack PxT", "key": "Attack PxT", "kind": "attack"},
+        {"label": "xShot Assists", "key": "Expected Shot Assists", "kind": "attack"},
+        {"label": "Final 3rd Receive", "key": "Final Third Receptions", "kind": "attack"},
+        {"label": "Final 3rd Passes", "key": "Passes Ending Final Third", "kind": "attack"},
+        {
+            "label": "Threat Prevented",
+            "key": "Def PXT Active",
+            "kind": "defense",
+            "direction": -1,
+        },
+        {"label": "Ball Wins", "key": "Ball Win Removed Opponents", "kind": "defense"},
+        {"label": "Interceptions", "key": "Interceptions", "kind": "defense"},
+        {"label": "Ball Security", "key": "Ball Security", "kind": "rate"},
+    ],
     "Defense": [
         {
             "label": "Threat Prevented",
@@ -153,6 +168,8 @@ def _position_bucket(position: str | None) -> str:
     value = position or ""
     if "GOALKEEPER" in value:
         return "GK"
+    if "WINGBACK" in value:
+        return "Wingbacks"
     if "FORWARD" in value or "WINGER" in value:
         return "Forwards"
     if "MIDFIELD" in value:
@@ -293,7 +310,7 @@ def _add_events(
                 start_x = event_coordinate_x(event, "start")
                 if start_x is not None and start_x >= 17.5:
                     row["Final Third Receptions"] += 1
-            elif action_type == "PASS":
+            elif action_type == "PASS" and event.get("result") == "SUCCESS":
                 end_x = event_coordinate_x(event, "end")
                 if end_x is not None and end_x >= 17.5:
                     row["Passes Ending Final Third"] += 1
@@ -625,8 +642,9 @@ def render_player_rankings_page(
     all_rows = build_player_ranking_rows(tuple(int(match["id"]) for match in matches), squads_by_id, players_by_id)
     selected_team_name = team_name(int(selected_team_id), squads_by_id)
 
-    tabs = st.tabs(["Forwards", "Midfield", "Defense", "GK"])
-    for tab, position in zip(tabs, ["Forwards", "Midfield", "Defense", "GK"]):
+    positions = ["Forwards", "Midfield", "Wingbacks", "Defense", "GK"]
+    tabs = st.tabs(positions)
+    for tab, position in zip(tabs, positions):
         with tab:
             scored = _score_position_rows(all_rows, position, minimum_minutes)
             st.markdown(f"**{position} · {selected_team_name} players**")
