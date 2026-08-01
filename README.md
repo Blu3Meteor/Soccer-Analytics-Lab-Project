@@ -65,8 +65,7 @@ If Streamlit asks for an email on first run, press Enter to skip it.
 If the `exam` virtual environment does not have Streamlit installed:
 
 ```bash
-source "Exam Files/exam/bin/activate"
-pip install -r "Exam Files/requirements.txt"
+pip install -r "requirements.txt"
 ```
 
 ## Completed features
