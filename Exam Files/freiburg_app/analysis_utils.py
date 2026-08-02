@@ -14,7 +14,7 @@ def percentile_rank(value: float, values: Sequence[float]) -> float:
     """Return the Soccermatics/Scipy percentile rank on a 0..100 scale."""
     if len(values) == 0:
         return 0.0
-    return float(int(percentileofscore(values, value)))
+    return float(percentileofscore(values, value))
 
 
 # Extra mathematical method: not part of the referenced Soccermatics lessons.
