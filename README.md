@@ -47,7 +47,7 @@ Exam Data/open-data/data
 From the project root:
 
 ```bash
-cd "/Users/ayushmangukia/Downloads/Soccer Analytics Lab"
+  cd "/Users/USER/Downloads/Soccer Analytics Lab"
 source "Exam Files/exam/bin/activate"
 streamlit run "Exam Files/freiburg_dashboard.py"
 ```
